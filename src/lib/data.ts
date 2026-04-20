@@ -1,0 +1,70 @@
+//#region Imports
+import {
+  Home,
+  Package,
+  Bot,
+  ShoppingBag,
+  Settings,
+  CreditCard,
+  Users,
+  BarChart3,
+} from "lucide-react";
+//#endregion
+
+//#region Sidebar Items
+// Navegación principal del panel vendedor. `link` debe match la ruta bajo
+// `src/app/(protectedRoutes)/`. Iconos de lucide-react.
+// `titleKey` mapea a claves de src/i18n/dictionaries/*.ts → sidebar.*
+export const sidebarData = [
+  { id: 1, titleKey: "home", icon: Home, link: "/home" },
+  { id: 2, titleKey: "catalogs", icon: Package, link: "/catalogs" },
+  { id: 3, titleKey: "assistants", icon: Bot, link: "/assistants" },
+  { id: 4, titleKey: "orders", icon: ShoppingBag, link: "/orders" },
+  { id: 5, titleKey: "analytics", icon: BarChart3, link: "/analytics" },
+  { id: 6, titleKey: "team", icon: Users, link: "/settings/team" },
+  { id: 7, titleKey: "billing", icon: CreditCard, link: "/settings/billing" },
+  { id: 8, titleKey: "settings", icon: Settings, link: "/settings" },
+] as const;
+//#endregion
+
+//#region Onboarding Steps
+// Placeholder del dashboard home. Se actualizarán dinámicamente cuando
+// el vendedor cree company/catalog/asistente.
+export const onboardingSteps = [
+  { id: 1, title: "Crear tu empresa", complete: false, link: "/onboarding/company" },
+  { id: 2, title: "Crear tu primer catálogo", complete: false, link: "/catalogs/new" },
+  { id: 3, title: "Configurar asistente de voz", complete: false, link: "/assistants/new" },
+  { id: 4, title: "Publicar catálogo", complete: false, link: "/catalogs" },
+];
+//#endregion
+
+//#region Default Assistant Prompt
+// System prompt base para un asistente de ventas de catálogo.
+// Variables reemplazables: {companyName}, {catalogName}, {currency}.
+// El asistente usa tool-calling para consultar productos y armar carrito.
+export const defaultAssistantSystemPrompt = `Sos un asistente de ventas de voz para {companyName}, trabajando sobre el catálogo "{catalogName}".
+
+Tu objetivo es ayudar al cliente a encontrar productos, entender sus necesidades, armar un carrito y guiarlo al checkout.
+
+## Comportamiento
+- Saludá cordialmente y preguntá qué está buscando
+- Hacé preguntas abiertas para entender el uso que le dará al producto
+- Usá la tool \`search_products\` para buscar productos relevantes
+- Cuando menciones un producto, describí su nombre, precio ({currency}) y descripción corta
+- Ofrecé máximo 2-3 productos por vez para no abrumar
+- Usá \`add_to_cart\` cuando el cliente confirme interés en un producto
+- Usá \`view_cart\` para revisar el carrito si el cliente lo pide
+- Al cerrar, pedí el email y usá \`checkout\` para generar el link de pago
+
+## Tono
+- Cercano, profesional, latinoamericano
+- Respuestas cortas (1-2 oraciones)
+- Contracciones naturales ("está", "podés", "querés")
+- No seas insistente ni pushy
+
+## Qué NO hacer
+- No inventes productos o precios — siempre usá search_products
+- No prometas envíos o plazos que no estén en el producto
+- No proceses pagos fuera de checkout
+`;
+//#endregion

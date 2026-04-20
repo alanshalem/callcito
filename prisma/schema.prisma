@@ -10,188 +10,260 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-// #endregion
 
 // ============================================================
 // #region Enums
 // ============================================================
-
-/// Estado del asistente dentro del ciclo de vida del webinar.
-enum AttendedTypeEnum {
-  REGISTERED
-  ATTENDED
-  ADDED_TO_CART
-  FOLLOW_UP
-  BREAKOUT_ROOM
-  CONVERTED
+enum UserRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
 }
 
-/// Tipo de call-to-action que se muestra durante el webinar.
-enum CtaTypeEnum {
-  BUY_NOW
-  BOOK_A_CALL
-}
-
-/// Estado operativo del webinar.
-enum WebinarStatusEnum {
-  SCHEDULED
-  WAITING_ROOM
-  LIVE
-  ENDED
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAUSED
   CANCELLED
 }
 
-/// Estado de la llamada con el AI agent (follow-up post webinar).
-enum CallStatusEnum {
-  PENDING
-  InProgress
-  COMPLETED
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
 }
-// #endregion
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ENDED
+  ABANDONED
+}
 
 // ============================================================
-// #region Models — User
+// #region Core: Users + Companies + Membership (Clerk Orgs)
 // ============================================================
-
-/// Usuario presenter del sistema. Sincronizado con Clerk vía `clerkId`.
-/// Uno-a-muchos con Webinar (relation "PresenterWebinars").
 model User {
-  // Identidad
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String  @db.VarChar(100)
-  clerkId      String  @unique // ID en Clerk — fuente de verdad para auth.
-  email        String  @unique
-  profileImage String
-
-  // Relaciones
-  webinars Webinar[] @relation("PresenterWebinars")
-
-  // Stripe (billing)
-  stripeConnectId  String? @db.VarChar(255) // Cuenta conectada (payouts).
-  stripeCustomerId String? @db.VarChar(255) // Cliente (charges).
-  subscription     Boolean @default(false)
-
-  // Timestamps / soft-delete
-  lastLoginAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime? // Soft-delete: null = activo.
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkId      String       @unique
+  email        String       @unique
+  name         String
+  profileImage String?
+  memberships  Membership[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([email])
   @@index([clerkId])
 }
-// #endregion
+
+model Company {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clerkOrgId      String        @unique
+  name            String
+  slug            String        @unique
+  logoUrl         String?
+  currency        String        @default("ARS")
+  country         String        @default("AR")
+  defaultLanguage String        @default("es")
+  mpAccessToken   String?       @db.Text
+  mpUserId        String?
+  platformFeeBps  Int           @default(0)
+  customDomain    String?       @unique
+  memberships     Membership[]
+  catalogs        Catalog[]
+  assistants      Assistant[]
+  subscription    Subscription?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([clerkOrgId])
+}
+
+model Membership {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  companyId String   @db.Uuid
+  role      UserRole @default(EDITOR)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+}
 
 // ============================================================
-// #region Models — Webinar
+// #region Catalog + Product
 // ============================================================
+model Catalog {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String     @db.Uuid
+  name        String
+  slug        String
+  description String?
+  isPublished Boolean    @default(false)
+  assistantId String?    @db.Uuid
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assistant   Assistant? @relation(fields: [assistantId], references: [id], onDelete: SetNull)
+  products    Product[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-/// Webinar programado/en vivo. Pertenece a un presenter (User) y
-/// agrega asistencias (Attendance).
-model Webinar {
-  // Identidad / contenido
-  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title       String  @db.VarChar(255)
-  description String? @db.Text
+  @@unique([companyId, slug])
+  @@index([companyId])
+}
+
+model Product {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  catalogId   String     @db.Uuid
+  sku         String?
+  name        String
+  description String?    @db.Text
+  price       Decimal    @db.Decimal(12, 2)
+  currency    String     @default("ARS")
+  stock       Int?
+  images      String[]
   tags        String[]
-  thumbnail   String?
+  isActive    Boolean    @default(true)
+  catalog     Catalog    @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  cartItems   CartItem[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  // Schedule
-  startTime     DateTime
-  endTime       DateTime?
-  duration      Int               @default(0) // Duración en minutos.
-  webinarStatus WebinarStatusEnum @default(SCHEDULED)
-
-  // Presenter (relación FK → User)
-  presenterId String @db.Uuid
-  presenter   User   @relation("PresenterWebinars", fields: [presenterId], references: [id], onDelete: Cascade)
-
-  // CTA (call-to-action mostrado en vivo)
-  ctaLabel String?     @db.VarChar(50)
-  ctaType  CtaTypeEnum
-  ctaUrl   String?     @db.VarChar(255)
-
-  // Cupones
-  couponCode    String?   @db.VarChar(50)
-  couponEnabled Boolean   @default(false)
-  couponExpiry  DateTime?
-
-  // Config runtime
-  lockChat     Boolean @default(false)
-  recordingUrl String?
-
-  // Stripe / AI
-  stripeProductId String? @db.VarChar(255)
-  priceId         String? @db.VarChar(255)
-  aiAgentId       String? @db.Uuid // Agent que hace follow-up calls.
-
-  // Asistencias
-  attendances Attendance[]
-
-  // Relación opcional con Attendee (pivot legacy — ver @@ unique en Attendance).
-  Attendee   Attendee? @relation(fields: [attendeeId], references: [id])
-  attendeeId String?   @db.Uuid
-
-  // Timestamps / soft-delete
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  @@index([presenterId])
-  @@index([aiAgentId])
-  @@index([startTime])
+  @@index([catalogId])
+  @@index([sku])
+  @@index([isActive])
 }
-// #endregion
 
 // ============================================================
-// #region Models — Attendee
+// #region AI Assistant (Vapi-backed) + Conversation
 // ============================================================
+model Assistant {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String         @db.Uuid
+  name            String
+  language        String         @default("es")
+  voiceId         String
+  firstMessage    String         @db.Text
+  systemPrompt    String         @db.Text
+  systemPromptB   String?        @db.Text
+  vapiAssistantId String?
+  company         Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  catalogs        Catalog[]
+  conversations   Conversation[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-/// Persona registrada a un webinar. Identificada por email (unique).
-/// Reusable entre webinars — la relación m:n se materializa en Attendance.
-model Attendee {
-  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email      String         @unique
-  name       String         @db.VarChar(100)
-  callStatus CallStatusEnum @default(PENDING) // Estado del follow-up call.
-
-  // Relaciones
-  Attendance Attendance[]
-  Webinar    Webinar[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@index([companyId])
 }
-// #endregion
 
-// ============================================================
-// #region Models — Attendance
-// ============================================================
+model Conversation {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assistantId    String             @db.Uuid
+  catalogId      String             @db.Uuid
+  customerEmail  String?
+  customerPhone  String?
+  status         ConversationStatus @default(ACTIVE)
+  vapiCallId     String?            @unique
+  transcript     Json?
+  durationSec    Int?
+  promptVariant  String?
+  assistant      Assistant          @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  cart           Cart?
+  startedAt      DateTime           @default(now())
+  endedAt        DateTime?
 
-/// Tabla puente Attendee ↔ Webinar con metadata de participación.
-/// `@@unique([attendeeId, webinarId])` garantiza 1 fila por combo.
-model Attendance {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-
-  // FKs
-  webinarId  String  @db.Uuid
-  attendeeId String  @db.Uuid
-  userId     String? @db.Uuid // Presenter/admin que registró (opcional).
-
-  // Relaciones
-  user    Attendee @relation(fields: [attendeeId], references: [id])
-  webinar Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  // Participación
-  joinedAt     DateTime         @default(now())
-  leftAt       DateTime?
-  attendedType AttendedTypeEnum
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([attendeeId, webinarId]) // ✅ 1 attendee por webinar.
-  @@index([webinarId])
-  @@index([attendedType])
+  @@index([assistantId])
+  @@index([catalogId])
+  @@index([status])
+  @@index([startedAt])
 }
-// #endregion
+
+// ============================================================
+// #region Cart + Order (MercadoPago-backed)
+// ============================================================
+model Cart {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String       @unique @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  items          CartItem[]
+  order          Order?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId    String  @db.Uuid
+  productId String  @db.Uuid
+  quantity  Int     @default(1)
+  priceSnap Decimal @db.Decimal(12, 2)
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([cartId])
+}
+
+model Order {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId         String      @unique @db.Uuid
+  cart           Cart        @relation(fields: [cartId], references: [id])
+  mpPreferenceId String?
+  mpPaymentId    String?
+  mpCheckoutUrl  String?
+  totalAmount    Decimal     @db.Decimal(12, 2)
+  currency       String
+  status         OrderStatus @default(PENDING)
+  customerEmail  String?
+  payerInfo      Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([status])
+  @@index([mpPreferenceId])
+}
+
+// ============================================================
+// #region SaaS Billing: Plan + Subscription
+// ============================================================
+model Plan {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tier             PlanTier       @unique
+  name             String
+  priceArs         Decimal        @db.Decimal(12, 2)
+  maxCatalogs      Int
+  maxProducts      Int
+  maxAssistants    Int
+  maxConversations Int
+  features         Json
+  mpPlanId         String?
+  subscriptions    Subscription[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model Subscription {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String             @unique @db.Uuid
+  planId           String             @db.Uuid
+  mpPreapprovalId  String?            @unique
+  status           SubscriptionStatus @default(PENDING)
+  currentPeriodEnd DateTime?
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan             Plan               @relation(fields: [planId], references: [id])
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([planId])
+  @@index([status])
+}

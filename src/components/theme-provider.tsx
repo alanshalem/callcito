@@ -1,18 +1,11 @@
-"use client";
+//#region Theme provider (cookie-based, no client lib)
+// Lee cookie server-side → aplica `class="dark"` o `class="light"` al <html>.
+// Reemplazo de next-themes para evitar localStorage flashes y FOUC en SSR.
+// Toggle: ver `<ThemeToggle>` en ReusableComponent.
 
-//#region Imports
-import * as React from "react";
-import { ThemeProvider as NextThemesProvider } from "next-themes";
-//#endregion
+import type { Theme } from "@/lib/preferences";
 
-//#region ThemeProvider
-// Wrapper client-side del ThemeProvider de next-themes.
-// Necesario porque next-themes usa hooks (useState/useEffect) y no puede
-// importarse en un Server Component como layout.tsx directamente.
-export function ThemeProvider({
-  children,
-  ...props
-}: React.ComponentProps<typeof NextThemesProvider>) {
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
+export function themeClass(theme: Theme): string {
+  return theme;
 }
 //#endregion
