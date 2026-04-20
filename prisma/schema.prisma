@@ -1,0 +1,197 @@
+// ============================================================
+// #region Generator & Datasource
+// ============================================================
+// Cliente Prisma generado a node_modules/.prisma/client.
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: `url` vive en prisma.config.ts, no acá.
+datasource db {
+  provider = "postgresql"
+}
+// #endregion
+
+// ============================================================
+// #region Enums
+// ============================================================
+
+/// Estado del asistente dentro del ciclo de vida del webinar.
+enum AttendedTypeEnum {
+  REGISTERED
+  ATTENDED
+  ADDED_TO_CART
+  FOLLOW_UP
+  BREAKOUT_ROOM
+  CONVERTED
+}
+
+/// Tipo de call-to-action que se muestra durante el webinar.
+enum CtaTypeEnum {
+  BUY_NOW
+  BOOK_A_CALL
+}
+
+/// Estado operativo del webinar.
+enum WebinarStatusEnum {
+  SCHEDULED
+  WAITING_ROOM
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+/// Estado de la llamada con el AI agent (follow-up post webinar).
+enum CallStatusEnum {
+  PENDING
+  InProgress
+  COMPLETED
+}
+// #endregion
+
+// ============================================================
+// #region Models — User
+// ============================================================
+
+/// Usuario presenter del sistema. Sincronizado con Clerk vía `clerkId`.
+/// Uno-a-muchos con Webinar (relation "PresenterWebinars").
+model User {
+  // Identidad
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String  @db.VarChar(100)
+  clerkId      String  @unique // ID en Clerk — fuente de verdad para auth.
+  email        String  @unique
+  profileImage String
+
+  // Relaciones
+  webinars Webinar[] @relation("PresenterWebinars")
+
+  // Stripe (billing)
+  stripeConnectId  String? @db.VarChar(255) // Cuenta conectada (payouts).
+  stripeCustomerId String? @db.VarChar(255) // Cliente (charges).
+  subscription     Boolean @default(false)
+
+  // Timestamps / soft-delete
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // Soft-delete: null = activo.
+
+  @@index([email])
+  @@index([clerkId])
+}
+// #endregion
+
+// ============================================================
+// #region Models — Webinar
+// ============================================================
+
+/// Webinar programado/en vivo. Pertenece a un presenter (User) y
+/// agrega asistencias (Attendance).
+model Webinar {
+  // Identidad / contenido
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String  @db.VarChar(255)
+  description String? @db.Text
+  tags        String[]
+  thumbnail   String?
+
+  // Schedule
+  startTime     DateTime
+  endTime       DateTime?
+  duration      Int               @default(0) // Duración en minutos.
+  webinarStatus WebinarStatusEnum @default(SCHEDULED)
+
+  // Presenter (relación FK → User)
+  presenterId String @db.Uuid
+  presenter   User   @relation("PresenterWebinars", fields: [presenterId], references: [id], onDelete: Cascade)
+
+  // CTA (call-to-action mostrado en vivo)
+  ctaLabel String?     @db.VarChar(50)
+  ctaType  CtaTypeEnum
+  ctaUrl   String?     @db.VarChar(255)
+
+  // Cupones
+  couponCode    String?   @db.VarChar(50)
+  couponEnabled Boolean   @default(false)
+  couponExpiry  DateTime?
+
+  // Config runtime
+  lockChat     Boolean @default(false)
+  recordingUrl String?
+
+  // Stripe / AI
+  stripeProductId String? @db.VarChar(255)
+  priceId         String? @db.VarChar(255)
+  aiAgentId       String? @db.Uuid // Agent que hace follow-up calls.
+
+  // Asistencias
+  attendances Attendance[]
+
+  // Relación opcional con Attendee (pivot legacy — ver @@ unique en Attendance).
+  Attendee   Attendee? @relation(fields: [attendeeId], references: [id])
+  attendeeId String?   @db.Uuid
+
+  // Timestamps / soft-delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([presenterId])
+  @@index([aiAgentId])
+  @@index([startTime])
+}
+// #endregion
+
+// ============================================================
+// #region Models — Attendee
+// ============================================================
+
+/// Persona registrada a un webinar. Identificada por email (unique).
+/// Reusable entre webinars — la relación m:n se materializa en Attendance.
+model Attendee {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String         @unique
+  name       String         @db.VarChar(100)
+  callStatus CallStatusEnum @default(PENDING) // Estado del follow-up call.
+
+  // Relaciones
+  Attendance Attendance[]
+  Webinar    Webinar[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+// #endregion
+
+// ============================================================
+// #region Models — Attendance
+// ============================================================
+
+/// Tabla puente Attendee ↔ Webinar con metadata de participación.
+/// `@@unique([attendeeId, webinarId])` garantiza 1 fila por combo.
+model Attendance {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // FKs
+  webinarId  String  @db.Uuid
+  attendeeId String  @db.Uuid
+  userId     String? @db.Uuid // Presenter/admin que registró (opcional).
+
+  // Relaciones
+  user    Attendee @relation(fields: [attendeeId], references: [id])
+  webinar Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  // Participación
+  joinedAt     DateTime         @default(now())
+  leftAt       DateTime?
+  attendedType AttendedTypeEnum
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([attendeeId, webinarId]) // ✅ 1 attendee por webinar.
+  @@index([webinarId])
+  @@index([attendedType])
+}
+// #endregion
