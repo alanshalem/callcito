@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import BillingPlans from "./_components/BillingPlans";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region Billing Page
 export default async function BillingPage() {
   const company = await getCurrentCompany();

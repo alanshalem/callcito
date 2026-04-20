@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import CatalogForm from "../_components/CatalogForm";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region New Catalog Page
 export default async function NewCatalogPage() {
   const company = await getCurrentCompany();

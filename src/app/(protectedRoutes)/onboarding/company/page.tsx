@@ -8,6 +8,8 @@ import ExistingCompaniesPicker from "./_components/ExistingCompaniesPicker";
 import OnboardingCompanyForm from "./_components/OnboardingCompanyForm";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region Onboarding Page
 export default async function OnboardingCompanyPage() {
   const { userId, orgId } = await auth();

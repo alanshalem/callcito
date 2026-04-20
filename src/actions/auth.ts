@@ -34,6 +34,11 @@ export async function onAuthenticateUser() {
     });
     return { status: 201 as const, user: created };
   } catch (error) {
+    // Next.js usa un throw con digest DYNAMIC_SERVER_USAGE durante
+    // static pre-render para marcar la ruta como dinámica. No loguear.
+    const e = error as { digest?: string };
+    if (e?.digest?.startsWith("DYNAMIC_SERVER_USAGE")) throw error;
+    if (e?.digest?.startsWith("NEXT_REDIRECT")) throw error;
     console.error("[onAuthenticateUser]", error);
     return { status: 500 as const, error: "Internal Server Error" };
   }

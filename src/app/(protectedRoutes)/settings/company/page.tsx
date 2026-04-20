@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import CompanySettingsForm from "./_components/CompanySettingsForm";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region Company Settings Page
 export default async function CompanySettingsPage() {
   const company = await getCurrentCompany();

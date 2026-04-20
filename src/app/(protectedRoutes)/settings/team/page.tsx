@@ -7,6 +7,8 @@ import { dark } from "@clerk/themes";
 import { redirect } from "next/navigation";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region Team Page
 export default async function TeamPage() {
   const [company, theme, t] = await Promise.all([getCurrentCompany(), getTheme(), getDictionary()]);

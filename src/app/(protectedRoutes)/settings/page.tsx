@@ -6,6 +6,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region Settings Index
 export default async function SettingsPage() {
   const company = await getCurrentCompany();

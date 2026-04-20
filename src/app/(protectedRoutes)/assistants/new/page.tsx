@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import AssistantForm from "../_components/AssistantForm";
 //#endregion
 
+export const dynamic = "force-dynamic";
+
 //#region New Assistant Page
 export default async function NewAssistantPage() {
   const company = await getCurrentCompany();
