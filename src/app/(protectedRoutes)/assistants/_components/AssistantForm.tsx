@@ -20,15 +20,11 @@ import { toast } from "sonner";
 //#endregion
 
 //#region Constants
-// Voces 11labs nativas en español (no inglés con acento). Probar en
-// https://elevenlabs.io/voice-library filtro "Spanish".
+// Voces 11labs de la public library (funcionan sin credencial propia
+// conectada en Vapi). Modelo eleven_multilingual_v2 respeta acento ES/PT.
 const VOICES = [
-  { id: "Nh2zY9kknu6z4pZy6FhD", name: "Valentina (ES-AR fem)" },
-  { id: "aRa5YCVnl01jgBLGEYsP", name: "Santiago (ES-AR masc)" },
-  { id: "iP95p4xoKVk53GoZ742B", name: "Cristian (ES-MX masc)" },
-  { id: "86V9x9hrQds83qf7zaGn", name: "Lucía (ES-ES fem)" },
-  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (PT-BR)" },
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (EN)" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (EN/multi)" },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (PT-BR/multi)" },
 ];
 
 type Lang = "es" | "es-AR" | "es-MX" | "pt" | "pt-BR" | "en";
