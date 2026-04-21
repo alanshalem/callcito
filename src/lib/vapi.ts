@@ -159,6 +159,19 @@ function assistantBody(c: VapiAssistantConfig) {
       idleTimeoutSeconds: 12,
       idleMessageMaxSpokenCount: 2,
     },
+    // clientMessages = qué tipos de eventos Vapi reenvía al browser SDK.
+    // Default NO incluye tool-calls-result → widget no podía pintar productos.
+    clientMessages: [
+      "transcript",
+      "hang",
+      "function-call",
+      "tool-calls",
+      "tool-calls-result",
+      "speech-update",
+      "status-update",
+      "conversation-update",
+      "user-interrupted",
+    ],
     serverUrl: `${c.baseUrl}/api/webhooks/vapi`,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET ?? "",
   };

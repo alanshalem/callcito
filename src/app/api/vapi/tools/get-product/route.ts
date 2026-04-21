@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     currency: currencyWord(product.currency),
     stock: product.stock,
     tags: product.tags,
+    images: product.images,
   });
 }
 //#endregion

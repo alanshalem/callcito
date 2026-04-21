@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       price: Number(p.price),
       currency: currencyWord(p.currency),
       stock: p.stock,
+      images: p.images,
     }))
   );
 }
