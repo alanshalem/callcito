@@ -1,7 +1,7 @@
 "use client";
 
 //#region Imports
-import { createAssistant } from "@/actions/assistant";
+import { updateAssistant } from "@/actions/assistant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,30 +17,49 @@ import { useT } from "@/i18n/client";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { LANGUAGES, VOICES, type Lang } from "./constants";
+import { LANGUAGES, VOICES, type Lang } from "../../_components/constants";
 //#endregion
 
-//#region Component
-const AssistantForm = ({
-  defaults,
-}: {
-  defaults?: { language?: string; systemPrompt?: string };
-}) => {
+//#region Types
+type Initial = {
+  id: string;
+  name: string;
+  language: string;
+  voiceId: string;
+  firstMessage: string;
+  systemPrompt: string;
+  systemPromptB: string | null;
+};
+//#endregion
+
+//#region AssistantEditor
+// Inline edit del asistente. Submit → updateAssistant (auto-sync con Vapi).
+const AssistantEditor = ({ initial }: { initial: Initial }) => {
   const router = useRouter();
   const t = useT();
-  const [isPending, startTransition] = useTransition();
-  const [name, setName] = useState("");
-  const [language, setLanguage] = useState(defaults?.language ?? "es");
-  const [voiceId, setVoiceId] = useState(VOICES[0].id);
-  const [firstMessage, setFirstMessage] = useState(t.assistants.form.firstMessagePlaceholder);
-  const [systemPrompt, setSystemPrompt] = useState(defaults?.systemPrompt ?? "");
-  const [enableAB, setEnableAB] = useState(false);
-  const [systemPromptB, setSystemPromptB] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const [name, setName] = useState(initial.name);
+  const [language, setLanguage] = useState(initial.language);
+  const [voiceId, setVoiceId] = useState(initial.voiceId);
+  const [firstMessage, setFirstMessage] = useState(initial.firstMessage);
+  const [systemPrompt, setSystemPrompt] = useState(initial.systemPrompt);
+  const [enableAB, setEnableAB] = useState(!!initial.systemPromptB);
+  const [systemPromptB, setSystemPromptB] = useState(initial.systemPromptB ?? "");
+
+  const dirty =
+    name !== initial.name ||
+    language !== initial.language ||
+    voiceId !== initial.voiceId ||
+    firstMessage !== initial.firstMessage ||
+    systemPrompt !== initial.systemPrompt ||
+    (enableAB ? systemPromptB : "") !== (initial.systemPromptB ?? "");
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dirty) return;
     startTransition(async () => {
-      const res = await createAssistant({
+      const res = await updateAssistant(initial.id, {
         name,
         language: language as Lang,
         voiceId,
@@ -48,24 +67,17 @@ const AssistantForm = ({
         systemPrompt,
         systemPromptB: enableAB && systemPromptB ? systemPromptB : undefined,
       });
-      if (res.status !== 201 && res.status !== 207) {
-        const msg = "message" in res ? res.message : t.assistants.form.errorCreate;
-        toast.error(msg ?? t.assistants.form.errorCreate);
+      if (res.status !== 200) {
+        toast.error(t.assistants.saveError);
         return;
       }
-      if (res.status === 207) {
-        const warnMsg = "message" in res ? res.message : t.assistants.form.warningNoVapi;
-        toast.warning(warnMsg ?? t.assistants.form.warningNoVapi, { duration: 8000 });
-      } else {
-        toast.success(t.assistants.form.successCreated);
-      }
-      router.push("/assistants");
+      toast.success(t.assistants.saved);
       router.refresh();
     });
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-6">
       <div>
         <Label htmlFor="name">{t.assistants.form.name}</Label>
         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -123,7 +135,7 @@ const AssistantForm = ({
           id="systemPrompt"
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
-          rows={10}
+          rows={14}
           className="font-mono text-xs"
           required
         />
@@ -149,19 +161,22 @@ const AssistantForm = ({
             id="systemPromptB"
             value={systemPromptB}
             onChange={(e) => setSystemPromptB(e.target.value)}
-            rows={10}
+            rows={14}
             className="font-mono text-xs"
             placeholder={t.assistants.form.systemPromptBPlaceholder}
           />
         </div>
       )}
 
-      <Button type="submit" disabled={isPending || !name}>
-        {isPending ? t.common.creating : t.assistants.form.submit}
-      </Button>
+      <div className="sticky bottom-0 bg-background/95 backdrop-blur py-3 border-t border-border flex items-center justify-end gap-2">
+        {dirty && <span className="text-xs text-amber-500">Cambios sin guardar</span>}
+        <Button type="submit" disabled={pending || !dirty}>
+          {pending ? t.common.saving : t.common.save}
+        </Button>
+      </div>
     </form>
   );
 };
 //#endregion
 
-export default AssistantForm;
+export default AssistantEditor;

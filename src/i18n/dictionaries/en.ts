@@ -269,6 +269,8 @@ export const en: Dictionary = {
     deleteConfirm: "Delete this assistant? It will also be removed from Vapi cloud. This cannot be undone.",
     deleted: "Assistant deleted",
     deleteError: "Could not delete",
+    saved: "Changes saved and synced to Vapi",
+    saveError: "Could not save",
     newTitle: "New assistant",
     newDesc: "The assistant talks to customers by voice on the public catalog.",
     form: {

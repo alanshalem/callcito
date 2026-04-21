@@ -195,6 +195,8 @@ export type Dictionary = {
     deleteConfirm: string;
     deleted: string;
     deleteError: string;
+    saved: string;
+    saveError: string;
     newTitle: string;
     newDesc: string;
     form: {
@@ -576,6 +578,8 @@ export const es: Dictionary = {
     deleteConfirm: "¿Borrar este asistente? Se elimina también del cloud de Vapi. No se puede deshacer.",
     deleted: "Asistente borrado",
     deleteError: "No se pudo borrar",
+    saved: "Cambios guardados y sincronizados con Vapi",
+    saveError: "No se pudo guardar",
     newTitle: "Nuevo asistente",
     newDesc: "El asistente atiende clientes por voz en el catálogo público.",
     form: {

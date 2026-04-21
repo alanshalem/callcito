@@ -2,11 +2,12 @@
 import { getAssistantById } from "@/actions/assistant";
 import { getDictionary } from "@/i18n";
 import { notFound } from "next/navigation";
+import AssistantEditor from "./_components/AssistantEditor";
+import AutoVapiSync from "./_components/AutoVapiSync";
 import DeleteAssistantButton from "./_components/DeleteAssistantButton";
-import SyncVapiButton from "./_components/SyncVapiButton";
 //#endregion
 
-//#region Assistant Detail
+//#region Assistant Detail (inline-editable)
 export default async function AssistantDetailPage({
   params,
 }: {
@@ -17,21 +18,15 @@ export default async function AssistantDetailPage({
   if (!assistant) notFound();
 
   return (
-    <div className="w-full h-full mt-8 px-6 md:px-8 lg:px-10 xl:px-12">
+    <div className="w-full h-full mt-8 px-6 md:px-8 lg:px-10 xl:px-12 max-w-4xl mx-auto pb-24">
+      <AutoVapiSync id={assistant.id} />
+
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-primary font-semibold text-4xl">{assistant.name}</h1>
-        <div className="flex gap-2">
-          <SyncVapiButton id={assistant.id} />
-          <DeleteAssistantButton id={assistant.id} name={assistant.name} />
-        </div>
+        <DeleteAssistantButton id={assistant.id} name={assistant.name} />
       </div>
+
       <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8">
-        <span>{assistant.language}</span>
-        <span>•</span>
-        <span>
-          {t.assistants.detail.voiceLabel}: {assistant.voiceId}
-        </span>
-        <span>•</span>
         <span>
           {t.assistants.detail.vapiLabel}:{" "}
           {assistant.vapiAssistantId ? (
@@ -40,32 +35,34 @@ export default async function AssistantDetailPage({
             <span className="text-amber-500">{t.assistants.detail.vapiNotSynced}</span>
           )}
         </span>
+        <span>•</span>
+        <span>
+          {assistant.catalogs.length} {t.assistants.catalogsCount}
+        </span>
       </div>
 
-      <section className="mb-8">
-        <h2 className="font-semibold mb-2">{t.assistants.detail.firstMessage}</h2>
-        <p className="p-4 rounded-xl border border-border bg-secondary/30">{assistant.firstMessage}</p>
-      </section>
+      <AssistantEditor
+        initial={{
+          id: assistant.id,
+          name: assistant.name,
+          language: assistant.language,
+          voiceId: assistant.voiceId,
+          firstMessage: assistant.firstMessage,
+          systemPrompt: assistant.systemPrompt,
+          systemPromptB: assistant.systemPromptB,
+        }}
+      />
 
-      <section className="mb-8">
-        <h2 className="font-semibold mb-2">{t.assistants.detail.systemPrompt}</h2>
-        <pre className="p-4 rounded-xl border border-border bg-secondary/30 text-xs overflow-x-auto whitespace-pre-wrap">
-          {assistant.systemPrompt}
-        </pre>
-      </section>
-
-      <section>
-        <h2 className="font-semibold mb-2">{t.assistants.detail.catalogsAssigned}</h2>
-        {assistant.catalogs.length === 0 ? (
-          <p className="text-muted-foreground">{t.assistants.detail.noCatalogs}</p>
-        ) : (
-          <ul className="list-disc list-inside">
+      {assistant.catalogs.length > 0 && (
+        <section className="mt-10">
+          <h2 className="font-semibold mb-2">{t.assistants.detail.catalogsAssigned}</h2>
+          <ul className="list-disc list-inside text-sm text-muted-foreground">
             {assistant.catalogs.map((c) => (
               <li key={c.id}>{c.name}</li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
