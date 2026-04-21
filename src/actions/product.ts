@@ -114,24 +114,33 @@ export async function getProductsByCatalog(catalogId: string, options?: { limit?
 //#region searchProducts (usado por Vapi tool)
 // Busca productos activos dentro de un catálogo por nombre/tags con filtro
 // opcional de precio. Estrategia fuzzy:
+// - Descarta stopwords ES + tokens cortos (<3 chars) — evita que "de"/"la"/etc
+//   matcheen casi todas las descripciones y saturen el OR.
 // - Strip plural "s"/"es" al final de cada palabra → root form (camperas→campera)
-// - Genera múltiples variantes como OR (ambas formas)
 // - Busca en name + description + tags
+// - Ranking in-memory: name match > tag match > description match. Sin este
+//   ranking, un match en description perdía contra top-10 alfabético.
+const ES_STOPWORDS = new Set([
+  "de","la","el","los","las","un","una","unos","unas","y","o","con","por",
+  "para","sin","del","al","en","es","se","lo","le","mi","tu","su","que","como",
+  "pero","mas","más","muy","ya","si","no","hay","tengo","tiene","tienes",
+]);
+
 export async function searchProducts(
   catalogId: string,
   query: string,
   filters?: { maxPrice?: number; tags?: string[] }
 ) {
   const q = query.trim().toLowerCase();
-  const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+  const tokens = q
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !ES_STOPWORDS.has(t));
 
-  // Genera variantes: palabra tal cual + root (sin plural) + raíz (primeros 5 chars para prefix match).
   const variants = new Set<string>();
   for (const t of tokens) {
     variants.add(t);
     if (t.endsWith("es") && t.length > 4) variants.add(t.slice(0, -2));
     if (t.endsWith("s") && t.length > 3) variants.add(t.slice(0, -1));
-    // Raíz para prefix fuzzy (ej: "aceit" matcha "aceite", "aceites", "aceitera")
     if (t.length > 4) variants.add(t.slice(0, Math.min(t.length - 1, 5)));
   }
   const variantList = Array.from(variants);
@@ -141,14 +150,16 @@ export async function searchProducts(
     { description: { contains: v, mode: "insensitive" as const } },
   ]);
 
-  // Tags van en clause propia (Prisma TS no permite mezclar contains + hasSome en mismo OR union).
   const tagsClause = variantList.length > 0 ? { tags: { hasSome: variantList } } : null;
 
-  return prismaClient.product.findMany({
+  // Si no hay tokens útiles (query vacía o toda stopwords), fallback a lista.
+  const hasSearch = variantList.length > 0;
+
+  const candidates = await prismaClient.product.findMany({
     where: {
       catalogId,
       isActive: true,
-      ...(q
+      ...(hasSearch
         ? {
             OR: [
               ...nameDescClauses,
@@ -159,9 +170,32 @@ export async function searchProducts(
       ...(filters?.maxPrice ? { price: { lte: filters.maxPrice } } : {}),
       ...(filters?.tags?.length ? { tags: { hasSome: filters.tags } } : {}),
     },
-    take: 10,
+    // Traemos candidatos extra para poder rankear; recortamos después.
+    take: hasSearch ? 60 : 10,
     orderBy: { name: "asc" },
   });
+
+  if (!hasSearch) return candidates;
+
+  // Ranking: name hit = 10, tag hit = 5, description hit = 1.
+  const scored = candidates.map((p) => {
+    const name = p.name.toLowerCase();
+    const desc = (p.description ?? "").toLowerCase();
+    const tags = p.tags.map((t) => t.toLowerCase());
+    let score = 0;
+    for (const v of variantList) {
+      if (name.includes(v)) score += 10;
+      if (tags.some((t) => t.includes(v))) score += 5;
+      if (desc.includes(v)) score += 1;
+    }
+    return { p, score };
+  });
+
+  return scored
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map((x) => x.p);
 }
 //#endregion
 
