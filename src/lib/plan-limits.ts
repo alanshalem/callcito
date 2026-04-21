@@ -1,17 +1,16 @@
 //#region Plan Limits Enforcement
 // Helpers que chequean antes de crear entidades (catalog, product, assistant)
 // si la Company todavía tiene cupo en su plan.
-// Uso: llamar antes de `prisma.<entity>.create` en los server actions.
+// Admins (User.isAdmin) bypasean TODOS los límites — útil para demos + debug.
 
+import { auth } from "@clerk/nextjs/server";
 import { prismaClient } from "./prismaClient";
 
 type LimitResult =
   | { allowed: true }
   | { allowed: false; reason: string; planTier: string };
 
-// Default "FREE" hardcoded — si el row no existe en DB (seed no corrió)
-// devolvemos estos límites en lugar de bloquear con 402. Evita cortar el flujo
-// de onboarding cuando el admin olvidó `npx tsx scripts/seed-plans.ts`.
+// Default FREE hardcoded — si seed no corrió, estos límites rigen.
 const FALLBACK_FREE = {
   tier: "FREE" as const,
   name: "Free",
@@ -20,6 +19,24 @@ const FALLBACK_FREE = {
   maxAssistants: 1,
   maxConversations: 50,
 };
+
+//#region isCurrentUserAdmin — bypass check
+// Lee user actual de Clerk + DB. Caché por request vía memo en closure no es
+// trivial en server actions, pero el overhead (1 query) es aceptable.
+async function isCurrentUserAdmin(): Promise<boolean> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return false;
+    const user = await prismaClient.user.findUnique({
+      where: { clerkId: userId },
+      select: { isAdmin: true },
+    });
+    return !!user?.isAdmin;
+  } catch {
+    return false;
+  }
+}
+//#endregion
 
 async function getActivePlan(companyId: string) {
   const sub = await prismaClient.subscription.findUnique({
@@ -32,6 +49,7 @@ async function getActivePlan(companyId: string) {
 }
 
 export async function canCreateCatalog(companyId: string): Promise<LimitResult> {
+  if (await isCurrentUserAdmin()) return { allowed: true };
   const plan = await getActivePlan(companyId);
   const count = await prismaClient.catalog.count({ where: { companyId } });
   if (count >= plan.maxCatalogs) {
@@ -45,6 +63,7 @@ export async function canCreateCatalog(companyId: string): Promise<LimitResult> 
 }
 
 export async function canCreateProduct(companyId: string, quantity = 1): Promise<LimitResult> {
+  if (await isCurrentUserAdmin()) return { allowed: true };
   const plan = await getActivePlan(companyId);
   const count = await prismaClient.product.count({
     where: { catalog: { companyId } },
@@ -60,6 +79,7 @@ export async function canCreateProduct(companyId: string, quantity = 1): Promise
 }
 
 export async function canCreateAssistant(companyId: string): Promise<LimitResult> {
+  if (await isCurrentUserAdmin()) return { allowed: true };
   const plan = await getActivePlan(companyId);
   const count = await prismaClient.assistant.count({ where: { companyId } });
   if (count >= plan.maxAssistants) {
@@ -73,9 +93,9 @@ export async function canCreateAssistant(companyId: string): Promise<LimitResult
 }
 
 export async function canStartConversation(companyId: string): Promise<LimitResult> {
+  if (await isCurrentUserAdmin()) return { allowed: true };
   const plan = await getActivePlan(companyId);
 
-  // Conversaciones del mes actual
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);

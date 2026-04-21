@@ -138,6 +138,20 @@ function assistantBody(c: VapiAssistantConfig) {
       waitSeconds: 0.4,
       smartEndpointingEnabled: true,
     },
+    // Cortes automáticos para ahorrar tokens:
+    // - silenceTimeoutSeconds: si no hay audio por X seg → Vapi corta.
+    // - maxDurationSeconds: techo duro por llamada (6 min).
+    silenceTimeoutSeconds: 30,
+    maxDurationSeconds: 360,
+    // Idle messages: reengagement antes de cortar por silencio.
+    messagePlan: {
+      idleMessages: [
+        "¿Sigues ahí?",
+        "¿Hay algo más en lo que pueda ayudarte?",
+      ],
+      idleTimeoutSeconds: 12,
+      idleMessageMaxSpokenCount: 2,
+    },
     serverUrl: `${c.baseUrl}/api/webhooks/vapi`,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET ?? "",
   };
@@ -152,7 +166,11 @@ function toolDef(
   return {
     type: "function",
     function: { name, description, parameters },
-    server: { url: `${baseUrl}/api/vapi/tools/${name.replaceAll("_", "-")}` },
+    server: {
+      url: `${baseUrl}/api/vapi/tools/${name.replaceAll("_", "-")}`,
+      // Secret enviado por Vapi como header `x-vapi-secret` — validado en verifyVapiSecret.
+      secret: process.env.VAPI_WEBHOOK_SECRET ?? "",
+    },
   };
 }
 //#endregion

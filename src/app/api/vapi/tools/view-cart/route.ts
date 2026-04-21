@@ -1,4 +1,5 @@
 //#region Imports
+import { currencyWord } from "@/lib/currency-words";
 import { prismaClient } from "@/lib/prismaClient";
 import { parseToolRequest, toolError, toolResult, verifyVapiSecret } from "@/lib/vapi-tool-helpers";
 //#endregion
@@ -11,7 +12,10 @@ export async function POST(req: Request) {
 
   const conversation = await prismaClient.conversation.findUnique({
     where: { vapiCallId: callId },
-    include: { cart: { include: { items: { include: { product: true } } } } },
+    include: {
+      cart: { include: { items: { include: { product: true } } } },
+      assistant: { include: { company: { select: { currency: true } } } },
+    },
   });
   if (!conversation?.cart || conversation.cart.items.length === 0) {
     return toolResult(toolCall?.id, "Carrito vacío");
@@ -24,7 +28,8 @@ export async function POST(req: Request) {
     subtotal: Number(i.priceSnap) * i.quantity,
   }));
   const total = items.reduce((acc, i) => acc + i.subtotal, 0);
+  const currency = currencyWord(conversation.assistant.company.currency);
 
-  return toolResult(toolCall?.id, { items, total });
+  return toolResult(toolCall?.id, { items, total, currency });
 }
 //#endregion

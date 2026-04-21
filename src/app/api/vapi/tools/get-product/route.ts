@@ -1,4 +1,5 @@
 //#region Imports
+import { currencyWord } from "@/lib/currency-words";
 import { prismaClient } from "@/lib/prismaClient";
 import { parseToolRequest, toolError, toolResult, verifyVapiSecret } from "@/lib/vapi-tool-helpers";
 //#endregion
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     name: product.name,
     description: product.description,
     price: Number(product.price),
-    currency: product.currency,
+    currency: currencyWord(product.currency),
     stock: product.stock,
     tags: product.tags,
   });

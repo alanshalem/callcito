@@ -146,10 +146,11 @@ export async function deleteCompany() {
 //#endregion
 
 //#region updateCompany
-// Campos editables: name, logoUrl, defaultLanguage, platformFeeBps, customDomain.
-// Slug + clerkOrgId no se cambian aquí. Solo OWNER/ADMIN.
+// Campos editables: name, slug, logoUrl, defaultLanguage, platformFeeBps, customDomain.
+// Solo OWNER/ADMIN. Cambiar slug rompe URLs públicas — UI advierte.
 export async function updateCompany(input: {
   name?: string;
+  slug?: string;
   logoUrl?: string | null;
   defaultLanguage?: string;
   platformFeeBps?: number;
@@ -171,11 +172,23 @@ export async function updateCompany(input: {
     return { status: 403 as const, message: "Solo OWNER/ADMIN pueden editar" };
   }
 
+  // Validar + unicidad de slug si cambió.
+  if (input.slug !== undefined) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug) || input.slug.length < 3) {
+      return { status: 400 as const, message: "Slug inválido (a-z, 0-9, guiones, min 3)" };
+    }
+    if (input.slug !== company.slug) {
+      const taken = await prismaClient.company.findUnique({ where: { slug: input.slug } });
+      if (taken) return { status: 409 as const, message: "Slug ya en uso" };
+    }
+  }
+
   try {
     const updated = await prismaClient.company.update({
       where: { id: company.id },
       data: {
         ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.slug !== undefined ? { slug: input.slug } : {}),
         ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl } : {}),
         ...(input.defaultLanguage !== undefined ? { defaultLanguage: input.defaultLanguage } : {}),
         ...(input.platformFeeBps !== undefined
@@ -184,7 +197,22 @@ export async function updateCompany(input: {
         ...(input.customDomain !== undefined ? { customDomain: input.customDomain } : {}),
       },
     });
+
+    // Sync Clerk Org (name + slug) si cambió.
+    if (input.name !== undefined || input.slug !== undefined) {
+      try {
+        const clerk = await clerkClient();
+        await clerk.organizations.updateOrganization(company.clerkOrgId, {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.slug !== undefined ? { slug: input.slug } : {}),
+        });
+      } catch (e) {
+        console.warn("[updateCompany] Clerk Org sync failed (DB updated)", e);
+      }
+    }
+
     revalidatePath("/settings");
+    revalidatePath("/companies");
     return { status: 200 as const, company: updated };
   } catch (error) {
     console.error("[updateCompany]", error);

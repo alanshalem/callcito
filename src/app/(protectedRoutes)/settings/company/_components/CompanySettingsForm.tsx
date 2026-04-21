@@ -43,23 +43,35 @@ type Props = {
 //#endregion
 
 //#region Component
+const slugify = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
+
 const CompanySettingsForm = ({ company }: Props) => {
   const router = useRouter();
   const t = useT();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(company.name);
+  const [slug, setSlug] = useState(company.slug);
   const [logoUrl, setLogoUrl] = useState(company.logoUrl ?? "");
   const [language, setLanguage] = useState(company.defaultLanguage);
   const [customDomain, setCustomDomain] = useState(company.customDomain ?? "");
 
+  const slugChanged = slug !== company.slug;
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (slugChanged) {
+      const ok = confirm(
+        `Vas a cambiar el slug de "${company.slug}" a "${slug}".\n\nEsto rompe URLs públicas existentes, QR compartidos, y links a tu catálogo. ¿Continuar?`
+      );
+      if (!ok) return;
+    }
     startTransition(async () => {
       const res = await updateCompany({
         name,
+        slug,
         logoUrl: logoUrl || null,
         defaultLanguage: language,
-        // platformFeeBps NO se toca acá — solo platform admin lo setea desde /admin.
         customDomain: customDomain.trim() || null,
       });
       if (res.status !== 200) {
@@ -74,8 +86,21 @@ const CompanySettingsForm = ({ company }: Props) => {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div>
-        <Label>{t.settings.company.slugLabel}</Label>
-        <Input value={company.slug} readOnly className="opacity-60" />
+        <Label htmlFor="slug">Slug (URL pública)</Label>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">callcito.app/c/</span>
+          <Input
+            id="slug"
+            value={slug}
+            onChange={(e) => setSlug(slugify(e.target.value))}
+            required
+          />
+        </div>
+        {slugChanged && (
+          <p className="text-xs text-amber-500 mt-1">
+            ⚠️ Cambiar el slug rompe URLs públicas, QR y links compartidos.
+          </p>
+        )}
       </div>
       <div>
         <Label htmlFor="name">{t.settings.company.name}</Label>

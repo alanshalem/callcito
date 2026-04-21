@@ -1,4 +1,5 @@
 //#region Imports
+import { currencyWord } from "@/lib/currency-words";
 import { createPreference } from "@/lib/mercadopago";
 import { prismaClient } from "@/lib/prismaClient";
 import { parseToolRequest, toolError, toolResult, verifyVapiSecret } from "@/lib/vapi-tool-helpers";
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
 
     return toolResult(
       toolCall?.id,
-      `Listo. Total ${currency} ${total}. Link de pago: ${pref.init_point}`
+      `Listo. Total ${total} ${currencyWord(currency)}. Link de pago: ${pref.init_point}`
     );
   } catch (error) {
     console.error("[checkout tool]", error);
