@@ -112,14 +112,38 @@ export async function getProductsByCatalog(catalogId: string, options?: { limit?
 //#endregion
 
 //#region searchProducts (usado por Vapi tool)
-// Busca productos activos dentro de un catálogo por nombre/tags con filtro opcional de precio.
-// Input crudo del asistente → sanitizamos aquí.
+// Busca productos activos dentro de un catálogo por nombre/tags con filtro
+// opcional de precio. Estrategia fuzzy:
+// - Strip plural "s"/"es" al final de cada palabra → root form (camperas→campera)
+// - Genera múltiples variantes como OR (ambas formas)
+// - Busca en name + description + tags
 export async function searchProducts(
   catalogId: string,
   query: string,
   filters?: { maxPrice?: number; tags?: string[] }
 ) {
   const q = query.trim().toLowerCase();
+  const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+
+  // Genera variantes: palabra tal cual + root (sin plural) + raíz (primeros 5 chars para prefix match).
+  const variants = new Set<string>();
+  for (const t of tokens) {
+    variants.add(t);
+    if (t.endsWith("es") && t.length > 4) variants.add(t.slice(0, -2));
+    if (t.endsWith("s") && t.length > 3) variants.add(t.slice(0, -1));
+    // Raíz para prefix fuzzy (ej: "aceit" matcha "aceite", "aceites", "aceitera")
+    if (t.length > 4) variants.add(t.slice(0, Math.min(t.length - 1, 5)));
+  }
+  const variantList = Array.from(variants);
+
+  const nameDescClauses = variantList.flatMap((v) => [
+    { name: { contains: v, mode: "insensitive" as const } },
+    { description: { contains: v, mode: "insensitive" as const } },
+  ]);
+
+  // Tags van en clause propia (Prisma TS no permite mezclar contains + hasSome en mismo OR union).
+  const tagsClause = variantList.length > 0 ? { tags: { hasSome: variantList } } : null;
+
   return prismaClient.product.findMany({
     where: {
       catalogId,
@@ -127,9 +151,8 @@ export async function searchProducts(
       ...(q
         ? {
             OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { description: { contains: q, mode: "insensitive" } },
-              { tags: { hasSome: q.split(/\s+/).filter(Boolean) } },
+              ...nameDescClauses,
+              ...(tagsClause ? [tagsClause] : []),
             ],
           }
         : {}),

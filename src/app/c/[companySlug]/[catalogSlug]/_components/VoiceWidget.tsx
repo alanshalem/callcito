@@ -4,7 +4,7 @@
 import { startConversation } from "@/actions/conversation";
 import { Button } from "@/components/ui/button";
 import Vapi from "@vapi-ai/web";
-import { Bot, Mic, MicOff, Phone, PhoneOff, User } from "lucide-react";
+import { Bot, Mic, MicOff, Phone, PhoneOff, ShoppingCart, User } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //#endregion
 
@@ -20,6 +20,7 @@ type DisplayProduct = {
   currency: string;
   image: string | null;
 };
+type CartLine = { name: string; quantity: number };
 type VapiMessage =
   | { type: "transcript"; transcriptType: "partial" | "final"; role: Role; transcript: string }
   | { type: "tool-calls-result"; toolCallList?: Array<{ id: string; name: string; result?: unknown }> }
@@ -57,6 +58,10 @@ const VoiceWidget = ({
   // Productos que el asistente mencionó (tool call search_products/get_product).
   // Mostramos el último set en un panel lateral durante la call.
   const [spotlightProducts, setSpotlightProducts] = useState<DisplayProduct[]>([]);
+  // Carrito reflejado desde tool results de add_to_cart / view_cart / remove_from_cart.
+  const [cart, setCart] = useState<CartLine[]>([]);
+  // Transcript parcial del speaker actual (se reemplaza continuo, no se apila).
+  const [livePartial, setLivePartial] = useState<{ role: Role; text: string } | null>(null);
 
   // Inicialización Vapi una sola vez
   useEffect(() => {
@@ -77,6 +82,9 @@ const VoiceWidget = ({
       setTranscript([]);
       setAssistantSpeaking(false);
       setUserSpeaking(false);
+      setSpotlightProducts([]);
+      setCart([]);
+      setLivePartial(null);
     });
     vapi.on("speech-start", () => setAssistantSpeaking(true));
     vapi.on("speech-end", () => setAssistantSpeaking(false));
@@ -87,26 +95,55 @@ const VoiceWidget = ({
     vapi.on("message", (msg: VapiMessage) => {
       if (msg.type === "transcript") {
         const m = msg as Extract<VapiMessage, { type: "transcript" }>;
-        setTranscript((prev) => {
-          if (m.transcriptType === "partial" && prev.length > 0 && prev[prev.length - 1].role === m.role) {
-            return [...prev.slice(0, -1), { ...prev[prev.length - 1], text: m.transcript }];
-          }
-          return [...prev, { id: `${Date.now()}-${Math.random()}`, role: m.role, text: m.transcript }];
-        });
-        if (m.role === "user") setUserSpeaking(m.transcriptType === "partial");
+        // Solo guardamos transcripts FINALES en la historia. Los partial se
+        // muestran en un slot aparte (live) que se reemplaza mientras habla.
+        // Evita duplicados cuando Vapi emite partial→partial→final del mismo turno.
+        if (m.transcriptType === "final") {
+          setTranscript((prev) => {
+            // Dedupe: si el último item ya tiene el mismo texto + role, skip.
+            const last = prev[prev.length - 1];
+            if (last && last.role === m.role && last.text.trim() === m.transcript.trim()) {
+              return prev;
+            }
+            return [...prev, { id: `${Date.now()}-${Math.random()}`, role: m.role, text: m.transcript }];
+          });
+          if (m.role === "user") setUserSpeaking(false);
+          setLivePartial(null);
+        } else {
+          // partial → solo en slot live
+          setLivePartial({ role: m.role, text: m.transcript });
+          if (m.role === "user") setUserSpeaking(true);
+        }
       }
 
-      // Tool call result → extraer productos para panel spotlight.
-      if (msg.type === "tool-calls-result" || msg.type === "tool-call-result") {
-        const payload = msg as { toolCallList?: Array<{ name?: string; result?: unknown }> };
-        const calls = payload.toolCallList ?? [];
+      // Tool call result → actualizar spotlight + cart widget.
+      // Vapi SDK puede emitir el result con nombres distintos según versión.
+      if (
+        msg.type === "tool-calls-result" ||
+        msg.type === "tool-call-result" ||
+        msg.type === "function-call-result"
+      ) {
+        const payload = msg as {
+          toolCallList?: Array<{ name?: string; result?: unknown }>;
+          functionCall?: { name?: string };
+          result?: unknown;
+        };
+        const calls =
+          payload.toolCallList ??
+          (payload.functionCall ? [{ name: payload.functionCall.name, result: payload.result }] : []);
         for (const c of calls) {
-          if (c.name === "search_products" || c.name === "get_product") {
+          const name = c.name ?? "";
+          if (name === "search_products" || name === "get_product") {
             const extracted = extractProducts(c.result);
             if (extracted.length > 0) setSpotlightProducts(extracted.slice(0, 3));
           }
+          if (name === "add_to_cart" || name === "view_cart" || name === "remove_from_cart") {
+            const updated = extractCart(c.result);
+            if (updated) setCart(updated);
+          }
         }
       }
+      // Debug fallback: cualquier otro tipo se ignora silencioso.
     });
     vapi.on("error", (err) => {
       console.error("[vapi]", err);
@@ -237,10 +274,28 @@ const VoiceWidget = ({
         )}
       </main>
 
-      {/* Transcript overlay */}
-      {transcript.length > 0 && (
+      {/* Cart widget: esquina inferior izquierda, muestra items del carrito live */}
+      {cart.length > 0 && (
+        <div className="absolute left-4 top-20 z-40 w-64 bg-background/95 backdrop-blur border border-border rounded-xl p-3 shadow-lg">
+          <div className="flex items-center gap-2 mb-2 text-sm font-semibold">
+            <ShoppingCart className="w-4 h-4 text-primary" />
+            Carrito ({cart.reduce((a, i) => a + i.quantity, 0)})
+          </div>
+          <ul className="text-xs space-y-1 max-h-48 overflow-y-auto scrollbar-hide">
+            {cart.map((it, i) => (
+              <li key={i} className="flex justify-between gap-2">
+                <span className="truncate">{it.name}</span>
+                <span className="text-muted-foreground tabular-nums shrink-0">×{it.quantity}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Transcript overlay: últimos 4 finales + partial actual en italic */}
+      {(transcript.length > 0 || livePartial) && (
         <div className="absolute left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 md:max-w-2xl bottom-24 max-h-48 overflow-y-auto bg-background/90 backdrop-blur border border-border rounded-xl p-3 text-sm scrollbar-hide">
-          {transcript.slice(-6).map((t) => (
+          {transcript.slice(-4).map((t) => (
             <div key={t.id} className="mb-1 last:mb-0">
               <span className={t.role === "user" ? "text-primary font-medium" : "text-muted-foreground font-medium"}>
                 {t.role === "user" ? "Tú" : assistantName}:
@@ -248,6 +303,14 @@ const VoiceWidget = ({
               <span>{t.text}</span>
             </div>
           ))}
+          {livePartial && (
+            <div className="mt-1 italic opacity-60">
+              <span className={livePartial.role === "user" ? "text-primary font-medium" : "text-muted-foreground font-medium"}>
+                {livePartial.role === "user" ? "Tú" : assistantName}:
+              </span>{" "}
+              <span>{livePartial.text}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -275,6 +338,35 @@ const VoiceWidget = ({
     </div>
   );
 };
+//#endregion
+
+//#region extractCart
+// Parsea result de add_to_cart/view_cart/remove_from_cart → array de líneas.
+function extractCart(result: unknown): CartLine[] | null {
+  let data: unknown = result;
+  if (typeof result === "string") {
+    try { data = JSON.parse(result); } catch { return null; }
+  }
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+
+  // add_to_cart nuevo: { success, cart: ["2× nombre"], cartTotalItems }
+  if (Array.isArray(d.cart)) {
+    return (d.cart as string[])
+      .map((s) => {
+        const m = /^(\d+)×\s*(.+)$/.exec(s);
+        return m ? { quantity: Number(m[1]), name: m[2] } : { quantity: 1, name: s };
+      });
+  }
+  // view_cart: { items: [{ name, quantity, ... }], total, currency }
+  if (Array.isArray(d.items)) {
+    return (d.items as Array<{ name?: unknown; quantity?: unknown }>).map((it) => ({
+      name: String(it.name ?? ""),
+      quantity: Number(it.quantity ?? 1),
+    }));
+  }
+  return null;
+}
 //#endregion
 
 //#region extractProducts

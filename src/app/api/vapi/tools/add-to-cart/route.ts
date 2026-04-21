@@ -45,6 +45,19 @@ export async function POST(req: Request) {
     });
   }
 
-  return toolResult(toolCall?.id, `Agregado ${quantity}× ${product.name} al carrito.`);
+  // Devolver estado del carrito post-add para que LLM no re-intente.
+  const items = await prismaClient.cartItem.findMany({
+    where: { cartId: cart.id },
+    include: { product: { select: { name: true } } },
+  });
+  const cartSummary = items.map((i) => `${i.quantity}× ${i.product.name}`);
+  const cartTotalQty = items.reduce((a, i) => a + i.quantity, 0);
+
+  return toolResult(toolCall?.id, {
+    success: true,
+    message: `Agregado ${quantity} ${product.name} al carrito.`,
+    cart: cartSummary,
+    cartTotalItems: cartTotalQty,
+  });
 }
 //#endregion
