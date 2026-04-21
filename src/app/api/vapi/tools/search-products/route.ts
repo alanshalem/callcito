@@ -17,11 +17,24 @@ export async function POST(req: Request) {
   if (!conversation) return toolResult(toolCall?.id, "No hay catálogo activo para esta conversación.");
 
   const query = String(args.query ?? "").trim();
+
+  // Fallback: si el LLM llama sin query, devolvemos categorías distinct
+  // (primera palabra del name) para que sepa qué tipos existen y vuelva a
+  // llamar con término real.
   if (!query) {
-    return toolResult(
-      toolCall?.id,
-      "Necesito un término de búsqueda. Volvé a llamar a search_products con query igual al producto que pidió el cliente (ej: 'amortiguador', 'disco de freno', 'bujía')."
-    );
+    const all = await prismaClient.product.findMany({
+      where: { catalogId: conversation.catalogId, isActive: true },
+      select: { name: true },
+      take: 500,
+    });
+    const categories = Array.from(
+      new Set(all.map((p) => p.name.split(/\s+/)[0]).filter(Boolean))
+    ).sort();
+    return toolResult(toolCall?.id, {
+      hint: "Llamá search_products otra vez con query igual al tipo de producto que pidió el cliente.",
+      availableCategories: categories,
+      totalProducts: all.length,
+    });
   }
 
   const products = await searchProducts(
