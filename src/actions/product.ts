@@ -155,24 +155,36 @@ export async function searchProducts(
   // Si no hay tokens útiles (query vacía o toda stopwords), fallback a lista.
   const hasSearch = variantList.length > 0;
 
-  const candidates = await prismaClient.product.findMany({
-    where: {
-      catalogId,
-      isActive: true,
-      ...(hasSearch
-        ? {
-            OR: [
-              ...nameDescClauses,
-              ...(tagsClause ? [tagsClause] : []),
-            ],
-          }
-        : {}),
-      ...(filters?.maxPrice ? { price: { lte: filters.maxPrice } } : {}),
-      ...(filters?.tags?.length ? { tags: { hasSome: filters.tags } } : {}),
-    },
-    // Traemos candidatos extra para poder rankear; recortamos después.
-    take: hasSearch ? 60 : 10,
-    orderBy: { name: "asc" },
+  const [totalInCatalog, candidates] = await Promise.all([
+    prismaClient.product.count({ where: { catalogId, isActive: true } }),
+    prismaClient.product.findMany({
+      where: {
+        catalogId,
+        isActive: true,
+        ...(hasSearch
+          ? {
+              OR: [
+                ...nameDescClauses,
+                ...(tagsClause ? [tagsClause] : []),
+              ],
+            }
+          : {}),
+        ...(filters?.maxPrice ? { price: { lte: filters.maxPrice } } : {}),
+        ...(filters?.tags?.length ? { tags: { hasSome: filters.tags } } : {}),
+      },
+      take: hasSearch ? 60 : 10,
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  console.log("[searchProducts]", {
+    catalogId,
+    query: q,
+    tokens,
+    variants: variantList,
+    totalActiveInCatalog: totalInCatalog,
+    matchedCount: candidates.length,
+    matchedNames: candidates.map((p) => p.name).slice(0, 5),
   });
 
   if (!hasSearch) return candidates;
