@@ -60,14 +60,25 @@ async function maybeRewriteCustomDomain(req: Request): Promise<Response | null> 
 //#region Middleware
 // Clerk middleware: inyecta sesión en req. Si la ruta no es pública,
 // `auth.protect()` redirige a sign-in / responde 404 (API).
-export default clerkMiddleware(async (auth, req) => {
-  const rewrite = await maybeRewriteCustomDomain(req);
-  if (rewrite) return rewrite;
+// Si faltan las keys de Clerk (env vars no cargadas en Vercel) → bypass
+// completo, deja que la app se sirva. Layout muestra "config missing".
+const HAS_CLERK =
+  !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !!process.env.CLERK_SECRET_KEY;
 
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
-});
+const noopMiddleware = async (req: Request): Promise<Response | undefined> => {
+  const rewrite = await maybeRewriteCustomDomain(req);
+  return rewrite ?? undefined;
+};
+
+export default HAS_CLERK
+  ? clerkMiddleware(async (auth, req) => {
+      const rewrite = await maybeRewriteCustomDomain(req);
+      if (rewrite) return rewrite;
+      if (!isPublicRoute(req)) {
+        await auth.protect();
+      }
+    })
+  : (noopMiddleware as never);
 //#endregion
 
 //#region Matcher Config
