@@ -35,7 +35,19 @@ export default async function BillingPage() {
         )}
       </p>
 
-      <BillingPlans plans={plans} currentTier={current?.plan.tier ?? null} />
+      <BillingPlans
+        plans={plans.map((p) => ({
+          id: p.id,
+          tier: p.tier,
+          name: p.name,
+          priceArs: Number(p.priceArs),
+          maxCatalogs: p.maxCatalogs,
+          maxProducts: p.maxProducts,
+          maxAssistants: p.maxAssistants,
+          maxConversations: p.maxConversations,
+        }))}
+        currentTier={current?.plan.tier ?? null}
+      />
     </div>
   );
 }

@@ -4,10 +4,24 @@
 import { upgradeToPlan } from "@/actions/subscription";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/client";
-import type { Plan, PlanTier } from "@prisma/client";
+import type { PlanTier } from "@prisma/client";
 import { Check } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
+//#endregion
+
+//#region Types
+// Shape plano — Decimal no serializa server→client.
+export type PlanRow = {
+  id: string;
+  tier: PlanTier;
+  name: string;
+  priceArs: number;
+  maxCatalogs: number;
+  maxProducts: number;
+  maxAssistants: number;
+  maxConversations: number;
+};
 //#endregion
 
 //#region Component
@@ -15,7 +29,7 @@ const BillingPlans = ({
   plans,
   currentTier,
 }: {
-  plans: Plan[];
+  plans: PlanRow[];
   currentTier: PlanTier | null;
 }) => {
   const t = useT();
@@ -49,9 +63,9 @@ const BillingPlans = ({
           >
             <h3 className="font-semibold text-lg mb-1">{p.name}</h3>
             <p className="text-2xl font-bold mb-4">
-              {Number(p.priceArs) === 0
+              {p.priceArs === 0
                 ? t.settings.billing.planFree
-                : `ARS ${Number(p.priceArs).toLocaleString()}`}
+                : `ARS ${p.priceArs.toLocaleString()}`}
               <span className="text-sm font-normal text-muted-foreground">
                 {t.settings.billing.perMonth}
               </span>

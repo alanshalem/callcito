@@ -2,6 +2,7 @@
 import { getAssistantById } from "@/actions/assistant";
 import { getDictionary } from "@/i18n";
 import { notFound } from "next/navigation";
+import SyncVapiButton from "./_components/SyncVapiButton";
 //#endregion
 
 //#region Assistant Detail
@@ -16,7 +17,10 @@ export default async function AssistantDetailPage({
 
   return (
     <div className="w-full h-full mt-8 px-6 md:px-8 lg:px-10 xl:px-12">
-      <h1 className="text-primary font-semibold text-4xl mb-2">{assistant.name}</h1>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-primary font-semibold text-4xl">{assistant.name}</h1>
+        <SyncVapiButton id={assistant.id} />
+      </div>
       <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8">
         <span>{assistant.language}</span>
         <span>•</span>

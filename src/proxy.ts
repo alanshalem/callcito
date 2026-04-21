@@ -58,17 +58,11 @@ async function maybeRewriteCustomDomain(req: Request): Promise<Response | null> 
 //#endregion
 
 //#region Middleware
-// Clerk middleware SIEMPRE exportado para que Next lo detecte estáticamente.
-// Si faltan env vars Clerk, `auth.protect()` se skipea y la landing pública
-// sirve normal (layout muestra "config missing" para el resto).
+// Clerk middleware requiere NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY.
+// No hay bypass: si faltan, el deploy crashea. Cargar antes de deployar.
 export default clerkMiddleware(async (auth, req) => {
   const rewrite = await maybeRewriteCustomDomain(req);
   if (rewrite) return rewrite;
-
-  const hasClerk =
-    !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !!process.env.CLERK_SECRET_KEY;
-  if (!hasClerk) return;
-
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

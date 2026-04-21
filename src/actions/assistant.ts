@@ -142,6 +142,52 @@ export async function getAssistantById(id: string) {
 }
 //#endregion
 
+//#region syncAssistantWithVapi
+// Retry manual: crea/updatea el assistant en Vapi usando la row DB existente.
+// Usa para reintentar si el create inicial falló (vapiAssistantId null).
+export async function syncAssistantWithVapi(id: string) {
+  const company = await getCurrentCompany();
+  if (!company) return { status: 403 as const };
+
+  const existing = await prismaClient.assistant.findFirst({
+    where: { id, companyId: company.id },
+  });
+  if (!existing) return { status: 404 as const };
+
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+    const config = {
+      name: existing.name,
+      language: existing.language,
+      voiceId: existing.voiceId,
+      firstMessage: existing.firstMessage,
+      systemPrompt: existing.systemPrompt,
+      catalogId: "",
+      baseUrl,
+    };
+
+    if (existing.vapiAssistantId) {
+      // Update existing
+      await vapiUpdateAssistant(existing.vapiAssistantId, config);
+    } else {
+      // Create new
+      const vapi = await vapiCreateAssistant(config);
+      await prismaClient.assistant.update({
+        where: { id },
+        data: { vapiAssistantId: vapi.id },
+      });
+    }
+    revalidatePath("/assistants");
+    revalidatePath(`/assistants/${id}`);
+    return { status: 200 as const };
+  } catch (error) {
+    console.error("[syncAssistantWithVapi]", error);
+    const msg = error instanceof Error ? error.message : "Sync falló";
+    return { status: 500 as const, message: msg };
+  }
+}
+//#endregion
+
 //#region assignAssistantToCatalog
 export async function assignAssistantToCatalog(catalogId: string, assistantId: string | null) {
   const company = await getCurrentCompany();

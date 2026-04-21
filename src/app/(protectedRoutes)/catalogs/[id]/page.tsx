@@ -1,16 +1,17 @@
 //#region Imports
+import { getAssistants } from "@/actions/assistant";
 import { getCatalogById } from "@/actions/catalog";
 import { getCurrentCompany } from "@/actions/company";
 import { getProductsByCatalog } from "@/actions/product";
 import { Button } from "@/components/ui/button";
 import { getDictionary } from "@/i18n";
-import { Plus, Upload } from "lucide-react";
+import { Edit, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import AssistantAssigner from "./_components/AssistantAssigner";
 import CatalogPublishToggle from "./_components/CatalogPublishToggle";
 import ProductsTable from "./_components/ProductsTable";
 import PublicUrlQr from "./_components/PublicUrlQr";
-import { Edit } from "lucide-react";
 //#endregion
 
 //#region Catalog Detail Page
@@ -23,10 +24,11 @@ export default async function CatalogDetailPage({
   const company = await getCurrentCompany();
   if (!company) redirect("/onboarding/company");
 
-  const [t, catalog, products] = await Promise.all([
+  const [t, catalog, products, assistants] = await Promise.all([
     getDictionary(),
     getCatalogById(id),
     getProductsByCatalog(id, { limit: 500 }),
+    getAssistants(),
   ]);
   if (!catalog) notFound();
 
@@ -48,6 +50,19 @@ export default async function CatalogDetailPage({
       <p className="text-muted-foreground mb-2">
         {catalog._count.products} {t.catalogs.productsCount}
       </p>
+
+      <div className="mb-6 max-w-xl">
+        <AssistantAssigner
+          catalogId={catalog.id}
+          currentAssistantId={catalog.assistantId}
+          assistants={assistants.map((a) => ({
+            id: a.id,
+            name: a.name,
+            hasVapiSync: !!a.vapiAssistantId,
+          }))}
+        />
+      </div>
+
       {catalog.isPublished && (
         <div className="mb-8 max-w-xl">
           <PublicUrlQr url={`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}${publicUrl}`} />
