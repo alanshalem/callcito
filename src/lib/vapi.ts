@@ -112,6 +112,9 @@ function assistantBody(c: VapiAssistantConfig) {
           },
           required: ["customerEmail"],
         }, c.baseUrl),
+        // Built-in Vapi tool: termina el call. Assistant lo usa cuando cliente
+        // se despide, después de checkout exitoso, o conversación abandonada.
+        { type: "endCall" },
       ],
     },
     voice: {

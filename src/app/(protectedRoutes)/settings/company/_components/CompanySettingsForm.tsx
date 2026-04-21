@@ -2,13 +2,32 @@
 
 //#region Imports
 import { updateCompany } from "@/actions/company";
+import ImageUpload from "@/components/ReusableComponent/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/i18n/client";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+//#endregion
+
+//#region Constants
+const LANGUAGES = [
+  { value: "es", label: "Español" },
+  { value: "es-AR", label: "Español (Argentina)" },
+  { value: "es-MX", label: "Español (México)" },
+  { value: "pt", label: "Portugués" },
+  { value: "pt-BR", label: "Portugués (Brasil)" },
+  { value: "en", label: "English" },
+];
 //#endregion
 
 //#region Types
@@ -17,7 +36,6 @@ type Props = {
     name: string;
     logoUrl: string | null;
     defaultLanguage: string;
-    platformFeeBps: number;
     customDomain: string | null;
     slug: string;
   };
@@ -32,7 +50,6 @@ const CompanySettingsForm = ({ company }: Props) => {
   const [name, setName] = useState(company.name);
   const [logoUrl, setLogoUrl] = useState(company.logoUrl ?? "");
   const [language, setLanguage] = useState(company.defaultLanguage);
-  const [feeBps, setFeeBps] = useState(String(company.platformFeeBps));
   const [customDomain, setCustomDomain] = useState(company.customDomain ?? "");
 
   const onSubmit = (e: React.FormEvent) => {
@@ -42,7 +59,7 @@ const CompanySettingsForm = ({ company }: Props) => {
         name,
         logoUrl: logoUrl || null,
         defaultLanguage: language,
-        platformFeeBps: Number(feeBps) || 0,
+        // platformFeeBps NO se toca acá — solo platform admin lo setea desde /admin.
         customDomain: customDomain.trim() || null,
       });
       if (res.status !== 200) {
@@ -65,30 +82,23 @@ const CompanySettingsForm = ({ company }: Props) => {
         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       <div>
-        <Label htmlFor="logoUrl">{t.settings.company.logoUrl}</Label>
-        <Input
-          id="logoUrl"
-          type="url"
-          value={logoUrl}
-          onChange={(e) => setLogoUrl(e.target.value)}
-          placeholder="https://..."
-        />
+        <Label>{t.settings.company.logoUrl}</Label>
+        <ImageUpload value={logoUrl || null} onChange={(url) => setLogoUrl(url ?? "")} />
       </div>
       <div>
-        <Label htmlFor="language">{t.settings.company.language}</Label>
-        <Input id="language" value={language} onChange={(e) => setLanguage(e.target.value)} />
-      </div>
-      <div>
-        <Label htmlFor="fee">{t.settings.company.platformFee}</Label>
-        <Input
-          id="fee"
-          type="number"
-          min="0"
-          max="10000"
-          value={feeBps}
-          onChange={(e) => setFeeBps(e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground mt-1">{t.settings.company.platformFeeHelp}</p>
+        <Label>{t.settings.company.language}</Label>
+        <Select value={language} onValueChange={setLanguage}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LANGUAGES.map((l) => (
+              <SelectItem key={l.value} value={l.value}>
+                {l.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label htmlFor="domain">{t.settings.company.customDomain}</Label>

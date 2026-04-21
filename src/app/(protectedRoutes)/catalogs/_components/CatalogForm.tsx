@@ -42,6 +42,7 @@ const CatalogForm = ({ editing }: { editing?: EditingCatalog }) => {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(editing?.name ?? "");
   const [slug, setSlug] = useState(editing?.slug ?? "");
+  const [slugDirty, setSlugDirty] = useState(!!editing); // edit mode: no auto-sync
   const [description, setDescription] = useState(editing?.description ?? "");
 
   const onSubmit = (e: React.FormEvent) => {
@@ -89,7 +90,7 @@ const CatalogForm = ({ editing }: { editing?: EditingCatalog }) => {
           value={name}
           onChange={(e) => {
             setName(e.target.value);
-            if (!slug) setSlug(slugify(e.target.value));
+            if (!slugDirty) setSlug(slugify(e.target.value));
           }}
           placeholder={t.catalogs.form.namePlaceholder}
           required
@@ -100,7 +101,10 @@ const CatalogForm = ({ editing }: { editing?: EditingCatalog }) => {
         <Input
           id="slug"
           value={slug}
-          onChange={(e) => setSlug(slugify(e.target.value))}
+          onChange={(e) => {
+            setSlug(slugify(e.target.value));
+            setSlugDirty(true);
+          }}
           placeholder={t.catalogs.form.slugPlaceholder}
           required
         />

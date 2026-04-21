@@ -2,6 +2,7 @@
 
 //#region Imports
 import { createProduct, updateProduct } from "@/actions/product";
+import ImageUpload from "@/components/ReusableComponent/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,14 +146,8 @@ const ProductForm = ({
       </div>
 
       <div>
-        <Label htmlFor="imageUrl">{t.products.form.imageUrl}</Label>
-        <Input
-          id="imageUrl"
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://..."
-        />
+        <Label>{t.products.form.imageUrl}</Label>
+        <ImageUpload value={imageUrl || null} onChange={(url) => setImageUrl(url ?? "")} />
       </div>
 
       <div className="flex items-center gap-2">

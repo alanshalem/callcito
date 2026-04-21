@@ -9,6 +9,7 @@ import {
   Users,
   BarChart3,
   MessagesSquare,
+  Building2,
 } from "lucide-react";
 //#endregion
 
@@ -18,6 +19,7 @@ import {
 // `titleKey` mapea a claves de src/i18n/dictionaries/*.ts → sidebar.*
 export const sidebarData = [
   { id: 1, titleKey: "home", icon: Home, link: "/home" },
+  { id: 10, titleKey: "companies", icon: Building2, link: "/companies" },
   { id: 2, titleKey: "catalogs", icon: Package, link: "/catalogs" },
   { id: 3, titleKey: "assistants", icon: Bot, link: "/assistants" },
   { id: 4, titleKey: "orders", icon: ShoppingBag, link: "/orders" },
@@ -68,5 +70,13 @@ Tu objetivo es ayudar al cliente a encontrar productos, entender sus necesidades
 - No inventes productos o precios — siempre usá search_products
 - No prometas envíos o plazos que no estén en el producto
 - No proceses pagos fuera de checkout
+
+## Cuándo cortar la llamada
+Usá la tool \`endCall\` cuando:
+- Cliente se despide explícitamente ("chau", "hasta luego", "listo", "gracias, nada más")
+- Completaste el checkout y cliente confirmó recibo del link
+- Cliente pide cortar ("cortame", "colgá")
+- Silencio prolongado después de 2 intentos de reingagement
+Despedite brevemente antes de cortar: "Dale, ¡que tengas un buen día! Chau."
 `;
 //#endregion

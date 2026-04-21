@@ -11,7 +11,7 @@ import { useT } from "@/i18n/client";
 import { sidebarData } from "@/lib/data";
 import type { Locale, Theme } from "@/lib/preferences";
 import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs";
-import { Sparkles } from "lucide-react";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import PreferencesToggle from "../PreferencesToggle";
@@ -21,9 +21,11 @@ import PreferencesToggle from "../PreferencesToggle";
 const Sidebar = ({
   theme,
   locale,
+  isAdmin = false,
 }: {
   theme: Theme;
   locale: Locale;
+  isAdmin?: boolean;
 }) => {
   const pathname = usePathname();
   const t = useT();
@@ -59,6 +61,31 @@ const Sidebar = ({
                 </Tooltip>
               </TooltipProvider>
             ))}
+
+          {/* Admin-only: link al panel de platform admin. Solo visible si user.isAdmin. */}
+          {isAdmin && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/admin"
+                    className={`flex items-center gap-2 cursor-pointer rounded-lg p-2 mt-4 border border-primary/30 ${
+                      pathname.startsWith("/admin") ? "iconBackground" : ""
+                    }`}
+                  >
+                    <ShieldCheck
+                      className={`w-4 h-4 text-primary ${
+                        pathname.startsWith("/admin") ? "" : "opacity-90"
+                      }`}
+                    />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <span className="text-sm">Admin</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         <div className="flex flex-col items-center gap-3">
           <PreferencesToggle currentTheme={theme} currentLocale={locale} />

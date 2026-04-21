@@ -95,6 +95,7 @@ export type Dictionary = {
   };
   sidebar: {
     home: string;
+    companies: string;
     catalogs: string;
     assistants: string;
     orders: string;
@@ -471,6 +472,7 @@ export const es: Dictionary = {
   },
   sidebar: {
     home: "Inicio",
+    companies: "Empresas",
     catalogs: "Catálogos",
     assistants: "Asistentes",
     orders: "Órdenes",

@@ -62,6 +62,7 @@ const OnboardingCompanyForm = () => {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [slugDirty, setSlugDirty] = useState(false);
   const [country, setCountry] = useState("AR");
   const [currency, setCurrency] = useState("ARS");
   const [language, setLanguage] = useState("es");
@@ -107,7 +108,7 @@ const OnboardingCompanyForm = () => {
           value={name}
           onChange={(e) => {
             setName(e.target.value);
-            if (!slug) setSlug(slugify(e.target.value));
+            if (!slugDirty) setSlug(slugify(e.target.value));
           }}
           placeholder={t.onboarding.companyNamePlaceholder}
           required
@@ -121,7 +122,10 @@ const OnboardingCompanyForm = () => {
           <Input
             id="slug"
             value={slug}
-            onChange={(e) => setSlug(slugify(e.target.value))}
+            onChange={(e) => {
+              setSlug(slugify(e.target.value));
+              setSlugDirty(true);
+            }}
             placeholder={t.onboarding.slugPlaceholder}
             required
           />

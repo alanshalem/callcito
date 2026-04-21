@@ -24,7 +24,6 @@ export default async function CompanySettingsPage() {
             name: company.name,
             logoUrl: company.logoUrl,
             defaultLanguage: company.defaultLanguage,
-            platformFeeBps: company.platformFeeBps,
             customDomain: company.customDomain,
             slug: company.slug,
           }}

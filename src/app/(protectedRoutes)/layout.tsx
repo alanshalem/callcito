@@ -25,11 +25,12 @@ const Layout = async ({ children }: Props) => {
     redirect("/sign-in");
   }
   const [theme, locale] = await Promise.all([getTheme(), getLocale()]);
+  const isAdmin = syncResult.user.isAdmin ?? false;
 
   return (
     <div className="flex w-full min-h-screen">
       <ActiveOrgGuard />
-      <Sidebar theme={theme} locale={locale} />
+      <Sidebar theme={theme} locale={locale} isAdmin={isAdmin} />
       <div className="flex flex-col w-full h-screen overflow-auto px-4 scrollbar-hide container mx-auto">
         {children}
       </div>

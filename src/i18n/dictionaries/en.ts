@@ -169,6 +169,7 @@ export const en: Dictionary = {
   },
   sidebar: {
     home: "Home",
+    companies: "Companies",
     catalogs: "Catalogs",
     assistants: "Assistants",
     orders: "Orders",
