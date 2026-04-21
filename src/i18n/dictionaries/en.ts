@@ -172,6 +172,7 @@ export const en: Dictionary = {
     catalogs: "Catalogs",
     assistants: "Assistants",
     orders: "Orders",
+    conversations: "Conversations",
     analytics: "Analytics",
     team: "Team",
     billing: "Billing",

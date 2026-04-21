@@ -8,6 +8,7 @@ import {
   CreditCard,
   Users,
   BarChart3,
+  MessagesSquare,
 } from "lucide-react";
 //#endregion
 
@@ -20,6 +21,7 @@ export const sidebarData = [
   { id: 2, titleKey: "catalogs", icon: Package, link: "/catalogs" },
   { id: 3, titleKey: "assistants", icon: Bot, link: "/assistants" },
   { id: 4, titleKey: "orders", icon: ShoppingBag, link: "/orders" },
+  { id: 9, titleKey: "conversations", icon: MessagesSquare, link: "/conversations" },
   { id: 5, titleKey: "analytics", icon: BarChart3, link: "/analytics" },
   { id: 6, titleKey: "team", icon: Users, link: "/settings/team" },
   { id: 7, titleKey: "billing", icon: CreditCard, link: "/settings/billing" },

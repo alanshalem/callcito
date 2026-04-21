@@ -98,6 +98,7 @@ export type Dictionary = {
     catalogs: string;
     assistants: string;
     orders: string;
+    conversations: string;
     analytics: string;
     team: string;
     billing: string;
@@ -473,6 +474,7 @@ export const es: Dictionary = {
     catalogs: "Catálogos",
     assistants: "Asistentes",
     orders: "Órdenes",
+    conversations: "Conversaciones",
     analytics: "Analytics",
     team: "Equipo",
     billing: "Facturación",

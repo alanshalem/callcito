@@ -30,14 +30,21 @@ export async function getCompanyMetrics() {
     dailyRevenue,
     abBreakdown,
   ] = await Promise.all([
+    // Solo conversaciones con call real iniciado (vapiCallId seteado).
+    // Excluye rows huérfanas creadas por `startConversation` cuando Vapi rechazó.
     prismaClient.conversation.count({
-      where: { assistant: { companyId: company.id }, startedAt: { gte: since } },
+      where: {
+        assistant: { companyId: company.id },
+        startedAt: { gte: since },
+        vapiCallId: { not: null },
+      },
     }),
     prismaClient.conversation.count({
       where: {
         assistant: { companyId: company.id },
         startedAt: { gte: since },
         status: "ENDED",
+        vapiCallId: { not: null },
       },
     }),
     prismaClient.order.count({

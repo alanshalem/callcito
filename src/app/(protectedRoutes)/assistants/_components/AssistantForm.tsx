@@ -20,11 +20,15 @@ import { toast } from "sonner";
 //#endregion
 
 //#region Constants
+// Voces 11labs nativas en español (no inglés con acento). Probar en
+// https://elevenlabs.io/voice-library filtro "Spanish".
 const VOICES = [
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (ES/EN)" },
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah (ES/EN)" },
-  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam (ES/EN)" },
-  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (PT/BR)" },
+  { id: "Nh2zY9kknu6z4pZy6FhD", name: "Valentina (ES-AR fem)" },
+  { id: "aRa5YCVnl01jgBLGEYsP", name: "Santiago (ES-AR masc)" },
+  { id: "iP95p4xoKVk53GoZ742B", name: "Cristian (ES-MX masc)" },
+  { id: "86V9x9hrQds83qf7zaGn", name: "Lucía (ES-ES fem)" },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (PT-BR)" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (EN)" },
 ];
 
 type Lang = "es" | "es-AR" | "es-MX" | "pt" | "pt-BR" | "en";
@@ -73,7 +77,8 @@ const AssistantForm = ({
         return;
       }
       if (res.status === 207) {
-        toast.warning(t.assistants.form.warningNoVapi);
+        const warnMsg = "message" in res ? res.message : t.assistants.form.warningNoVapi;
+        toast.warning(warnMsg ?? t.assistants.form.warningNoVapi, { duration: 8000 });
       } else {
         toast.success(t.assistants.form.successCreated);
       }

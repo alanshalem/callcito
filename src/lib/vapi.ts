@@ -117,10 +117,23 @@ function assistantBody(c: VapiAssistantConfig) {
     voice: {
       provider: "11labs",
       voiceId: c.voiceId,
+      // Model multilingual para que respete acento de voz ES.
+      model: "eleven_multilingual_v2",
     },
     transcriber: {
       provider: "deepgram",
-      language: c.language.slice(0, 2),
+      // Locale LATAM para voces argentinas/mexicanas.
+      language: c.language.startsWith("es") ? "es-419" : c.language.slice(0, 2),
+      // nova-2 = mejor accuracy ES; smart_format agrega mayúsculas + puntuación.
+      model: "nova-2",
+      smartFormat: true,
+      // Endpointing ms: menor = respuesta rápida, mayor = deja terminar oraciones.
+      endpointing: 200,
+      keywords: ["MercadoPago", "catálogo", "carrito", "oferta"],
+    },
+    startSpeakingPlan: {
+      waitSeconds: 0.4,
+      smartEndpointingEnabled: true,
     },
     serverUrl: `${c.baseUrl}/api/webhooks/vapi`,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET ?? "",

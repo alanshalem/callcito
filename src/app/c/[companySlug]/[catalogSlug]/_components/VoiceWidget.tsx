@@ -4,7 +4,7 @@
 import { startConversation } from "@/actions/conversation";
 import { Button } from "@/components/ui/button";
 import Vapi from "@vapi-ai/web";
-import { Bot, Mic, MicOff, Phone, PhoneOff, User, Volume2 } from "lucide-react";
+import { Bot, Mic, MicOff, Phone, PhoneOff, User } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //#endregion
 
@@ -12,8 +12,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 type Status = "idle" | "starting" | "connected" | "ending";
 type Role = "user" | "assistant";
 type TranscriptItem = { id: string; role: Role; text: string };
+type DisplayProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  image: string | null;
+};
 type VapiMessage =
   | { type: "transcript"; transcriptType: "partial" | "final"; role: Role; transcript: string }
+  | { type: "tool-calls-result"; toolCallList?: Array<{ id: string; name: string; result?: unknown }> }
   | { type: string; [k: string]: unknown };
 //#endregion
 
@@ -39,13 +48,15 @@ const VoiceWidget = ({
   const vapiRef = useRef<Vapi | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [muted, setMuted] = useState(false);
-  const [userVolume, setUserVolume] = useState(0); // Vapi no expone mic del user; proxy via speech events
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
   const [userSpeaking, setUserSpeaking] = useState(false);
   const [assistantVolume, setAssistantVolume] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
   const [durationSec, setDurationSec] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  // Productos que el asistente mencionó (tool call search_products/get_product).
+  // Mostramos el último set en un panel lateral durante la call.
+  const [spotlightProducts, setSpotlightProducts] = useState<DisplayProduct[]>([]);
 
   // Inicialización Vapi una sola vez
   useEffect(() => {
@@ -76,15 +87,24 @@ const VoiceWidget = ({
     vapi.on("message", (msg: VapiMessage) => {
       if (msg.type === "transcript") {
         const m = msg as Extract<VapiMessage, { type: "transcript" }>;
-        // Si es partial, actualiza el último; si final, agrega nuevo item.
         setTranscript((prev) => {
           if (m.transcriptType === "partial" && prev.length > 0 && prev[prev.length - 1].role === m.role) {
             return [...prev.slice(0, -1), { ...prev[prev.length - 1], text: m.transcript }];
           }
           return [...prev, { id: `${Date.now()}-${Math.random()}`, role: m.role, text: m.transcript }];
         });
-        if (m.role === "user") {
-          setUserSpeaking(m.transcriptType === "partial");
+        if (m.role === "user") setUserSpeaking(m.transcriptType === "partial");
+      }
+
+      // Tool call result → extraer productos para panel spotlight.
+      if (msg.type === "tool-calls-result" || msg.type === "tool-call-result") {
+        const payload = msg as { toolCallList?: Array<{ name?: string; result?: unknown }> };
+        const calls = payload.toolCallList ?? [];
+        for (const c of calls) {
+          if (c.name === "search_products" || c.name === "get_product") {
+            const extracted = extractProducts(c.result);
+            if (extracted.length > 0) setSpotlightProducts(extracted.slice(0, 3));
+          }
         }
       }
     });
@@ -105,14 +125,9 @@ const VoiceWidget = ({
     return () => clearInterval(t);
   }, [status, startedAt]);
 
-  // Fake user volume heuristic (Vapi no expone mic level directo; usamos speaking flag)
-  useEffect(() => {
-    if (userSpeaking) {
-      const t = setInterval(() => setUserVolume(Math.random() * 0.8 + 0.2), 120);
-      return () => clearInterval(t);
-    }
-    setUserVolume(0);
-  }, [userSpeaking]);
+  // `userVolume` derivado de userSpeaking: cuando habla el user, pulso fijo visual
+  // (Vapi SDK no expone mic level del user). Evita setState en effect body.
+  const userVolume = userSpeaking ? 0.6 : 0;
 
   const start = useCallback(async () => {
     if (!vapiRef.current) return;
@@ -198,7 +213,7 @@ const VoiceWidget = ({
         </div>
       </header>
 
-      {/* Participant tiles */}
+      {/* Participant tiles + product spotlight */}
       <main className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 p-3 md:p-6 overflow-hidden">
         <ParticipantTile
           label="Tú"
@@ -208,14 +223,18 @@ const VoiceWidget = ({
           volume={userVolume}
           variant="user"
         />
-        <ParticipantTile
-          label={assistantName}
-          icon={<Bot className="w-16 h-16 opacity-80" />}
-          speaking={assistantSpeaking}
-          muted={false}
-          volume={assistantVolume}
-          variant="assistant"
-        />
+        {spotlightProducts.length > 0 ? (
+          <ProductSpotlight products={spotlightProducts} assistantName={assistantName} />
+        ) : (
+          <ParticipantTile
+            label={assistantName}
+            icon={<Bot className="w-16 h-16 opacity-80" />}
+            speaking={assistantSpeaking}
+            muted={false}
+            volume={assistantVolume}
+            variant="assistant"
+          />
+        )}
       </main>
 
       {/* Transcript overlay */}
@@ -243,9 +262,6 @@ const VoiceWidget = ({
         >
           {muted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
         </Button>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <Volume2 className="w-4 h-4" />
-        </div>
         <Button
           size="icon"
           variant="destructive"
@@ -259,6 +275,70 @@ const VoiceWidget = ({
     </div>
   );
 };
+//#endregion
+
+//#region extractProducts
+// Tool result puede ser: string JSON, array plano, o nested object.
+// Normalizamos a DisplayProduct[].
+function extractProducts(result: unknown): DisplayProduct[] {
+  let data: unknown = result;
+  if (typeof result === "string") {
+    try { data = JSON.parse(result); } catch { return []; }
+  }
+  const arr = Array.isArray(data) ? data : [data];
+  return arr
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((p) => ({
+      id: String(p.id ?? ""),
+      name: String(p.name ?? ""),
+      description: p.description == null ? null : String(p.description),
+      price: Number(p.price ?? 0),
+      currency: String(p.currency ?? "ARS"),
+      image: Array.isArray(p.images) && p.images[0] ? String(p.images[0]) : null,
+    }))
+    .filter((p) => p.id && p.name);
+}
+//#endregion
+
+//#region ProductSpotlight
+function ProductSpotlight({
+  products,
+  assistantName,
+}: {
+  products: DisplayProduct[];
+  assistantName: string;
+}) {
+  return (
+    <div className="relative rounded-2xl bg-secondary p-4 overflow-y-auto">
+      <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+        <Bot className="w-4 h-4" /> {assistantName} te muestra:
+      </div>
+      <div className="flex flex-col gap-3">
+        {products.map((p) => (
+          <div key={p.id} className="flex gap-3 p-3 rounded-xl bg-background border border-border">
+            {p.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.image} alt={p.name} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+            ) : (
+              <div className="w-20 h-20 rounded-lg bg-secondary shrink-0 flex items-center justify-center">
+                <Bot className="w-6 h-6 text-muted-foreground" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold truncate">{p.name}</div>
+              {p.description && (
+                <div className="text-xs text-muted-foreground line-clamp-2 mb-1">{p.description}</div>
+              )}
+              <div className="text-sm font-semibold">
+                {p.currency} {p.price.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 //#endregion
 
 //#region ParticipantTile

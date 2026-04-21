@@ -29,13 +29,20 @@ export async function createAssistant(input: AssistantInput) {
   const limit = await canCreateAssistant(company.id);
   if (!limit.allowed) return { status: 402 as const, message: limit.reason };
 
-  const assistant = await prismaClient.assistant.create({
-    data: {
-      ...parsed.data,
-      systemPromptB: parsed.data.systemPromptB ?? null,
-      companyId: company.id,
-    },
-  });
+  let assistant;
+  try {
+    assistant = await prismaClient.assistant.create({
+      data: {
+        ...parsed.data,
+        systemPromptB: parsed.data.systemPromptB ?? null,
+        companyId: company.id,
+      },
+    });
+  } catch (error) {
+    console.error("[createAssistant] DB create failed", error);
+    const msg = error instanceof Error ? error.message : "DB error";
+    return { status: 500 as const, message: msg };
+  }
 
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
@@ -52,7 +59,9 @@ export async function createAssistant(input: AssistantInput) {
     return { status: 201 as const, assistantId: assistant.id };
   } catch (error) {
     console.error("[createAssistant] Vapi sync failed", error);
-    return { status: 207 as const, assistantId: assistant.id, warning: "Vapi no sincronizó — reintentar" };
+    const msg = error instanceof Error ? error.message : "Vapi sync failed";
+    revalidatePath("/assistants");
+    return { status: 207 as const, assistantId: assistant.id, message: msg };
   }
 }
 //#endregion
