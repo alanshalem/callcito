@@ -16,14 +16,22 @@ export async function POST(req: Request) {
     : null;
   if (!conversation) return toolResult(toolCall?.id, "No hay catálogo activo para esta conversación.");
 
+  const query = String(args.query ?? "").trim();
+  if (!query) {
+    return toolResult(
+      toolCall?.id,
+      "Necesito un término de búsqueda. Volvé a llamar a search_products con query igual al producto que pidió el cliente (ej: 'amortiguador', 'disco de freno', 'bujía')."
+    );
+  }
+
   const products = await searchProducts(
     conversation.catalogId,
-    String(args.query ?? ""),
+    query,
     { maxPrice: typeof args.maxPrice === "number" ? args.maxPrice : undefined }
   );
 
   if (products.length === 0) {
-    return toolResult(toolCall?.id, "Sin resultados. Probá con otras palabras.");
+    return toolResult(toolCall?.id, `Sin resultados para "${query}". Probá con otras palabras o sinónimos.`);
   }
 
   return toolResult(

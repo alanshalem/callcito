@@ -75,10 +75,10 @@ function assistantBody(c: VapiAssistantConfig) {
       model: "gpt-4o-mini",
       messages: [{ role: "system", content: c.systemPrompt }],
       tools: [
-        toolDef("search_products", "Busca productos en el catálogo por nombre, descripción o tags.", {
+        toolDef("search_products", "Busca productos en el catálogo por nombre, descripción o tags. SIEMPRE pasá el término exacto que mencionó el cliente (ej: 'amortiguador', 'disco de freno'). NUNCA llames con query vacío.", {
           type: "object",
           properties: {
-            query: { type: "string", description: "Texto a buscar" },
+            query: { type: "string", description: "Término que dijo el cliente. Ej: 'amortiguador', 'bujía', 'disco de freno'. Obligatorio, nunca vacío." },
             maxPrice: { type: "number", description: "Precio máximo (opcional)" },
           },
           required: ["query"],
