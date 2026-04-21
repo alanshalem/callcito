@@ -41,20 +41,44 @@ export default async function RootLayout({
     getDictionary(),
   ]);
 
+  // Si faltan keys críticas en prod, mostramos pantalla de "config missing"
+  // en lugar de crashear con 500 (Clerk throwea si no hay publishableKey).
+  const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  const shell = (
+    <html
+      lang={locale}
+      className={cn("h-full", "antialiased", manrope.variable, theme)}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <I18nProvider dict={dict}>
+          <TooltipProvider delayDuration={200}>
+            {hasClerkKey ? children : <MissingConfigScreen />}
+          </TooltipProvider>
+        </I18nProvider>
+      </body>
+    </html>
+  );
+
+  if (!hasClerkKey) return shell;
+  return <ClerkProvider>{shell}</ClerkProvider>;
+}
+
+function MissingConfigScreen() {
   return (
-    <ClerkProvider>
-      <html
-        lang={locale}
-        className={cn("h-full", "antialiased", manrope.variable, theme)}
-        suppressHydrationWarning
-      >
-        <body className="min-h-full flex flex-col" suppressHydrationWarning>
-          <I18nProvider dict={dict}>
-            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-          </I18nProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+    <main className="min-h-screen flex items-center justify-center px-6">
+      <div className="max-w-md text-center">
+        <h1 className="text-2xl font-semibold mb-3">Configuración incompleta</h1>
+        <p className="text-muted-foreground mb-4">
+          Faltan variables de entorno críticas (Clerk). La app no puede inicializar.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Configurá <code className="font-mono">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code>{" "}
+          en Vercel → Settings → Environment Variables y hacé redeploy.
+        </p>
+      </div>
+    </main>
   );
 }
 //#endregion

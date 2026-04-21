@@ -19,17 +19,26 @@ const isPublicRoute = createRouteMatcher([
 
 //#region Custom Domain Rewrite
 // Si el host del request matchea `Company.customDomain`, rewrite a /c/[slug]/...
-// Los dominios custom se configuran en /settings/company + CNAME al deployment.
-// En dev (localhost), este bloque no dispara.
-const APP_HOSTS = new Set<string>([
-  process.env.NEXT_PUBLIC_APP_HOST ?? "",
-  "localhost:3000",
-  "127.0.0.1:3000",
-]);
+// Config: /settings/company + CNAME al deployment.
+// Skip: localhost, tu Vercel URL, vercel preview branches.
+function isAppHost(host: string): boolean {
+  if (host === "localhost:3000" || host === "127.0.0.1:3000") return true;
+  if (process.env.NEXT_PUBLIC_APP_HOST === host) return true;
+  // Match NEXT_PUBLIC_BASE_URL → extract host
+  const base = process.env.NEXT_PUBLIC_BASE_URL;
+  if (base) {
+    try {
+      if (new URL(base).host === host) return true;
+    } catch { /* ignore */ }
+  }
+  // Default Vercel domains nunca son custom domains
+  if (host.endsWith(".vercel.app")) return true;
+  return false;
+}
 
 async function maybeRewriteCustomDomain(req: Request): Promise<Response | null> {
   const host = new Headers(req.headers).get("host");
-  if (!host || APP_HOSTS.has(host)) return null;
+  if (!host || isAppHost(host)) return null;
 
   const company = await prismaClient.company
     .findUnique({
@@ -40,7 +49,6 @@ async function maybeRewriteCustomDomain(req: Request): Promise<Response | null> 
   if (!company) return null;
 
   const url = new URL(req.url);
-  // Ya estamos bajo /c/<slug>/... → no rewrites anidados
   if (url.pathname.startsWith(`/c/${company.slug}/`)) return null;
 
   const rewritten = new URL(url);
