@@ -63,6 +63,21 @@ const VoiceWidget = ({
   // Transcript parcial del speaker actual (se reemplaza continuo, no se apila).
   const [livePartial, setLivePartial] = useState<{ role: Role; text: string } | null>(null);
 
+  // Cortar call si el user cierra tab/ventana
+  useEffect(() => {
+    const onUnload = () => {
+      try {
+        vapiRef.current?.stop();
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    window.addEventListener("pagehide", onUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      window.removeEventListener("pagehide", onUnload);
+    };
+  }, []);
+
   // Inicialización Vapi una sola vez
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;

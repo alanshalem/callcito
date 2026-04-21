@@ -138,6 +138,13 @@ function assistantBody(c: VapiAssistantConfig) {
       waitSeconds: 0.4,
       smartEndpointingEnabled: true,
     },
+    // Barge-in: si el user habla mientras el bot habla, cortar al bot.
+    // numWords bajo = alta sensibilidad (1 palabra alcanza).
+    stopSpeakingPlan: {
+      numWords: 1,
+      voiceSeconds: 0.15,
+      backoffSeconds: 0.5,
+    },
     // Cortes automáticos para ahorrar tokens:
     // - silenceTimeoutSeconds: si no hay audio por X seg → Vapi corta.
     // - maxDurationSeconds: techo duro por llamada (6 min).
