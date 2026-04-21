@@ -265,6 +265,10 @@ export const en: Dictionary = {
     catalogsCount: "catalogs",
     conversationsCount: "conversations",
     notSynced: "Not synced to Vapi",
+    deleteBtn: "Delete",
+    deleteConfirm: "Delete this assistant? It will also be removed from Vapi cloud. This cannot be undone.",
+    deleted: "Assistant deleted",
+    deleteError: "Could not delete",
     newTitle: "New assistant",
     newDesc: "The assistant talks to customers by voice on the public catalog.",
     form: {

@@ -6,6 +6,7 @@ import { getDictionary } from "@/i18n";
 import { Bot, Plus } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AssistantListCard from "./_components/AssistantListCard";
 //#endregion
 
 // Force fresh fetch cada request. Tras create/update/delete queremos ver los
@@ -44,34 +45,18 @@ export default async function AssistantsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {assistants.map((a) => (
-            <Link
+            <AssistantListCard
               key={a.id}
-              href={`/assistants/${a.id}`}
-              className="p-6 rounded-xl border border-border hover:bg-secondary transition-colors"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Bot className="w-5 h-5" />
-                <h3 className="font-semibold text-lg">{a.name}</h3>
-              </div>
-              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{a.firstMessage}</p>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{a.language}</span>
-                <span>•</span>
-                <span>
-                  {a._count.catalogs} {t.assistants.catalogsCount}
-                </span>
-                <span>•</span>
-                <span>
-                  {a._count.conversations} {t.assistants.conversationsCount}
-                </span>
-                {!a.vapiAssistantId && (
-                  <>
-                    <span>•</span>
-                    <span className="text-amber-500">{t.assistants.notSynced}</span>
-                  </>
-                )}
-              </div>
-            </Link>
+              assistant={{
+                id: a.id,
+                name: a.name,
+                language: a.language,
+                firstMessage: a.firstMessage,
+                vapiAssistantId: a.vapiAssistantId,
+                catalogsCount: a._count.catalogs,
+                conversationsCount: a._count.conversations,
+              }}
+            />
           ))}
         </div>
       )}

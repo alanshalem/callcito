@@ -23,8 +23,12 @@ import { toast } from "sonner";
 // Voces 11labs de la public library (funcionan sin credencial propia
 // conectada en Vapi). Modelo eleven_multilingual_v2 respeta acento ES/PT.
 const VOICES = [
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (EN/multi)" },
-  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (PT-BR/multi)" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel (F, multi)" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah (F, multi, cálida)" },
+  { id: "piTKgcLEGmPE4e6mEKli", name: "Nicole (F, multi, suave)" },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi (F, multi, enérgica)" },
+  { id: "ErXwobaYiN019PkySvjV", name: "Antoni (M, multi, joven)" },
+  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam (M, multi, grave)" },
 ];
 
 type Lang = "es" | "es-AR" | "es-MX" | "pt" | "pt-BR" | "en";
