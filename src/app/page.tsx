@@ -1,10 +1,11 @@
 //#region Imports
+import { Logo } from "@/components/Logo";
 import PreferencesToggle from "@/components/ReusableComponent/PreferencesToggle";
 import { Button } from "@/components/ui/button";
 import { getDictionary } from "@/i18n";
 import { getLocale, getTheme } from "@/lib/preferences";
 import { auth } from "@clerk/nextjs/server";
-import { ArrowRight, Bot, Check, CreditCard, Package, Phone, Upload, Zap } from "lucide-react";
+import { ArrowRight, Bot, Check, CreditCard, Package, Phone, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 //#endregion
 
@@ -48,9 +49,8 @@ function Header({
   return (
     <header className="w-full border-b border-border sticky top-0 z-40 bg-background/80 backdrop-blur">
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Zap className="w-5 h-5 text-primary" />
-          callcito
+        <Link href="/" aria-label="callcito" className="flex items-center">
+          <Logo size={36} withWordmark />
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
           <a href="#how">{t.landing.navHow}</a>
@@ -139,7 +139,7 @@ function HowItWorks({ t }: { t: T }) {
 }
 
 function Features({ t }: { t: T }) {
-  const icons = [Package, Bot, CreditCard, Zap];
+  const icons = [Package, Bot, CreditCard, Sparkles];
   return (
     <section id="features" className="container mx-auto px-6 py-20">
       <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">
@@ -223,7 +223,7 @@ function Footer({ t }: { t: T }) {
     <footer className="border-t border-border mt-auto">
       <div className="container mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4" /> callcito — {new Date().getFullYear()}
+          <Logo size={20} /> callcito — {new Date().getFullYear()}
         </div>
         <div className="flex items-center gap-4">
           <Link href="/sign-in">{t.common.login}</Link>

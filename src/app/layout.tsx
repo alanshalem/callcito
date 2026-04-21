@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   title: "callcito",
   description: "AI Powered Sales Voice Assistant for Catalogs",
   icons: {
-    icon: [{ url: "/favicon.png", type: "image/png" }],
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
   },
 };
 //#endregion

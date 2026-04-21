@@ -10,8 +10,9 @@ import {
 import { useT } from "@/i18n/client";
 import { sidebarData } from "@/lib/data";
 import type { Locale, Theme } from "@/lib/preferences";
+import { Logo } from "@/components/Logo";
 import { OrganizationSwitcher, UserButton, useAuth } from "@clerk/nextjs";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import PreferencesToggle from "../PreferencesToggle";
@@ -34,7 +35,9 @@ const Sidebar = ({
 
   return (
     <div className="w-18 sm:w-28 h-screen sticky top-0 py-10 px-2 sm:px-6 border bg-background border-border flex flex-col items-center justify-start gap-10">
-      <Sparkles className="w-5 h-5 text-foreground" strokeWidth={1.8} />
+      <Link href="/home" aria-label="callcito">
+        <Logo size={32} />
+      </Link>
       <div className="w-full h-full justify-between items-center flex flex-col">
         <div className="w-full h-fit flex flex-col gap-4 items-center justify-center">
           {showNav &&
