@@ -122,10 +122,12 @@ const VoiceWidget = ({
       setStatus("idle");
       return;
     }
-    const { conversation, variantPrompt, promptVariant } = result;
+    const { conversation, promptVariant } = result;
+    // No overrides de model: Vapi exige `provider` + `model` completos y el
+    // assistant ya está configurado server-side via vapiCreateAssistant.
+    // A/B variants: tracked en DB (promptVariant) pero no cambia prompt live.
     await vapiRef.current.start(vapiAssistantId, {
       metadata: { conversationId: conversation.id, catalogId, promptVariant },
-      model: { messages: [{ role: "system", content: variantPrompt }] },
     } as never);
   }, [assistantDbId, catalogId, vapiAssistantId]);
 
