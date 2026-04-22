@@ -10,9 +10,16 @@ export async function POST(req: Request) {
   if (!verifyVapiSecret(req)) return toolError("Unauthorized", 401);
   const { toolCall, args, callId } = await parseToolRequest(req);
 
+  console.log("[tool:add_to_cart] args:", JSON.stringify(args));
+
   const productId = String(args.productId ?? "");
   const quantity = Number(args.quantity ?? 1);
-  if (!productId) return toolResult(toolCall?.id, "Falta productId");
+  if (!productId) {
+    return toolResult(toolCall?.id, {
+      success: false,
+      error: "Falta productId. Llamá de nuevo pasando el 'id' del producto desde el último search_products result.",
+    });
+  }
   if (!callId) return toolResult(toolCall?.id, "Conversación inválida");
 
   const conversation = await prismaClient.conversation.findUnique({ where: { vapiCallId: callId } });

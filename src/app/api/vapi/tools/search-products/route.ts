@@ -39,9 +39,12 @@ export async function POST(req: Request) {
     }
     const sample = Array.from(byCategory.values()).flat().slice(0, 30);
     console.log("[tool:search_products] empty-query fallback → sample:", sample.length, "products across", byCategory.size, "categories");
-    return toolResult(
-      toolCall?.id,
-      sample.map((p) => ({
+    // isFallback=true → client widget no spotlighta (evita mostrar productos random
+    // que el usuario no pidió).
+    return toolResult(toolCall?.id, {
+      isFallback: true,
+      hint: "Sample multi-categoría. Volvé a llamar con query específico al término que mencionó el cliente para obtener resultados relevantes.",
+      products: sample.map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description,
@@ -49,8 +52,8 @@ export async function POST(req: Request) {
         currency: currencyWord(p.currency),
         stock: p.stock,
         images: p.images,
-      }))
-    );
+      })),
+    });
   }
 
   const products = await searchProducts(
