@@ -9,11 +9,24 @@ export type VapiToolCall = {
   function: { name: string; arguments: string };
 };
 
+export type VapiConversationMsg = {
+  role?: string;
+  content?: string;
+  message?: string;
+  transcript?: string;
+};
+
 export type VapiMessage = {
   type: string;
   toolCallList?: VapiToolCall[];
   call?: { id?: string; assistantId?: string };
   metadata?: Record<string, unknown>;
+  artifact?: {
+    messages?: VapiConversationMsg[];
+    messagesOpenAIFormatted?: VapiConversationMsg[];
+  };
+  conversation?: VapiConversationMsg[];
+  messages?: VapiConversationMsg[];
 };
 
 export type VapiToolRequest = {
@@ -63,5 +76,28 @@ export function toolResult(toolCallId: string | undefined, result: unknown) {
 
 export function toolError(message: string, status = 400) {
   return Response.json({ error: message }, { status });
+}
+
+// Extrae el último mensaje "user" del body de Vapi (busca en varias ubicaciones
+// porque la shape varía por evento). Devuelve el texto plano o null.
+export function extractLastUserMessage(body: VapiToolRequest): string | null {
+  const msg = body.message;
+  if (!msg) return null;
+  const buckets: VapiConversationMsg[][] = [
+    msg.artifact?.messagesOpenAIFormatted ?? [],
+    msg.artifact?.messages ?? [],
+    msg.messages ?? [],
+    msg.conversation ?? [],
+  ];
+  for (const bucket of buckets) {
+    for (let i = bucket.length - 1; i >= 0; i--) {
+      const m = bucket[i];
+      if (m.role !== "user") continue;
+      const text = m.content ?? m.message ?? m.transcript ?? "";
+      const t = text.trim();
+      if (t) return t;
+    }
+  }
+  return null;
 }
 //#endregion

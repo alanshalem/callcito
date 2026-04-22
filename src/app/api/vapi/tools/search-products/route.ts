@@ -2,14 +2,20 @@
 import { searchProducts } from "@/actions/product";
 import { currencyWord } from "@/lib/currency-words";
 import { prismaClient } from "@/lib/prismaClient";
-import { parseToolRequest, toolError, toolResult, verifyVapiSecret } from "@/lib/vapi-tool-helpers";
+import {
+  extractLastUserMessage,
+  parseToolRequest,
+  toolError,
+  toolResult,
+  verifyVapiSecret,
+} from "@/lib/vapi-tool-helpers";
 //#endregion
 
 //#region POST — search_products
 export async function POST(req: Request) {
   if (!verifyVapiSecret(req)) return toolError("Unauthorized", 401);
 
-  const { toolCall, args, callId } = await parseToolRequest(req);
+  const { body, toolCall, args, callId } = await parseToolRequest(req);
 
   console.log("[tool:search_products] args:", JSON.stringify(args), "callId:", callId);
 
@@ -18,7 +24,17 @@ export async function POST(req: Request) {
     : null;
   if (!conversation) return toolResult(toolCall?.id, "No hay catálogo activo para esta conversación.");
 
-  const query = String(args.query ?? "").trim();
+  let query = String(args.query ?? "").trim();
+
+  // Fallback inteligente: si LLM manda query vacío, usar último user message
+  // del body Vapi. Evita depender de que gpt-4o-mini respete el tool schema.
+  if (!query) {
+    const lastUser = extractLastUserMessage(body);
+    if (lastUser) {
+      query = lastUser;
+      console.log("[tool:search_products] empty query → using last user msg:", query);
+    }
+  }
 
   // Fallback cuando LLM llama con query vacío: devolver muestra real (2 por
   // categoría) en vez de solo nombres. gpt-4o-mini a veces ignora "volvé a
