@@ -22,6 +22,23 @@ export async function POST(req: Request) {
     where: { cartId: conversation.cart.id, productId },
   });
 
-  return toolResult(toolCall?.id, "Producto removido del carrito.");
+  const items = await prismaClient.cartItem.findMany({
+    where: { cartId: conversation.cart.id },
+    include: { product: { select: { name: true, price: true } } },
+  });
+  const cartSummary = items.map((i) => `${i.quantity}× ${i.product.name}`);
+  const cartTotalQty = items.reduce((a, i) => a + i.quantity, 0);
+  const cartTotalPrice = items.reduce(
+    (a, i) => a + Number(i.product.price) * i.quantity,
+    0
+  );
+
+  return toolResult(toolCall?.id, {
+    success: true,
+    message: "Producto removido del carrito.",
+    cart: cartSummary,
+    cartTotalItems: cartTotalQty,
+    cartTotalPrice,
+  });
 }
 //#endregion

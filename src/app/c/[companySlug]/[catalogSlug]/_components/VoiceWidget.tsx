@@ -21,6 +21,7 @@ type DisplayProduct = {
   image: string | null;
 };
 type CartLine = { name: string; quantity: number };
+type CartState = { lines: CartLine[]; totalPrice: number | null; currency: string | null };
 type VapiMessage =
   | { type: "transcript"; transcriptType: "partial" | "final"; role: Role; transcript: string }
   | { type: "tool-calls-result"; toolCallList?: Array<{ id: string; name: string; result?: unknown }> }
@@ -58,8 +59,12 @@ const VoiceWidget = ({
   // Productos que el asistente mencionó (tool call search_products/get_product).
   // Mostramos el último set en un panel lateral durante la call.
   const [spotlightProducts, setSpotlightProducts] = useState<DisplayProduct[]>([]);
+  // Fade flag — true cuando estamos desvaneciendo el spotlight antes de quitarlo.
+  const [spotlightFading, setSpotlightFading] = useState(false);
   // Carrito reflejado desde tool results de add_to_cart / view_cart / remove_from_cart.
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartState>({ lines: [], totalPrice: null, currency: null });
+  // Pulse visual del cart cuando cambia (add/remove).
+  const [cartPulse, setCartPulse] = useState(false);
   // Transcript parcial del speaker actual (se reemplaza continuo, no se apila).
   const [livePartial, setLivePartial] = useState<{ role: Role; text: string } | null>(null);
 
@@ -98,7 +103,9 @@ const VoiceWidget = ({
       setAssistantSpeaking(false);
       setUserSpeaking(false);
       setSpotlightProducts([]);
-      setCart([]);
+      setSpotlightFading(false);
+      setCart({ lines: [], totalPrice: null, currency: null });
+      setCartPulse(false);
       setLivePartial(null);
     });
     vapi.on("speech-start", () => setAssistantSpeaking(true));
@@ -108,6 +115,9 @@ const VoiceWidget = ({
       setAssistantVolume(lvl);
     });
     vapi.on("message", (msg: VapiMessage) => {
+      if (process.env.NEXT_PUBLIC_VAPI_DEBUG === "1") {
+        console.log("[vapi-msg]", msg.type, msg);
+      }
       if (msg.type === "transcript") {
         const m = msg as Extract<VapiMessage, { type: "transcript" }>;
         // Solo guardamos transcripts FINALES en la historia. Los partial se
@@ -150,11 +160,18 @@ const VoiceWidget = ({
           const name = c.name ?? "";
           if (name === "search_products" || name === "get_product") {
             const extracted = extractProducts(c.result);
-            if (extracted.length > 0) setSpotlightProducts(extracted.slice(0, 3));
+            if (extracted.length > 0) {
+              setSpotlightProducts(extracted.slice(0, 3));
+              setSpotlightFading(false);
+            }
           }
           if (name === "add_to_cart" || name === "view_cart" || name === "remove_from_cart") {
             const updated = extractCart(c.result);
-            if (updated) setCart(updated);
+            if (updated) {
+              setCart(updated);
+              setCartPulse(true);
+              setTimeout(() => setCartPulse(false), 900);
+            }
           }
         }
       }
@@ -176,6 +193,21 @@ const VoiceWidget = ({
     const t = setInterval(() => setDurationSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(t);
   }, [status, startedAt]);
+
+  // Auto-fade ProductSpotlight: 8s después del último tool-result, arranca fade,
+  // 500ms después lo quitamos. Nuevo tool-result resetea el timer (efecto reruns).
+  useEffect(() => {
+    if (spotlightProducts.length === 0) return;
+    const fadeStart = setTimeout(() => setSpotlightFading(true), 8000);
+    const clear = setTimeout(() => {
+      setSpotlightProducts([]);
+      setSpotlightFading(false);
+    }, 8500);
+    return () => {
+      clearTimeout(fadeStart);
+      clearTimeout(clear);
+    };
+  }, [spotlightProducts]);
 
   // `userVolume` derivado de userSpeaking: cuando habla el user, pulso fijo visual
   // (Vapi SDK no expone mic level del user). Evita setState en effect body.
@@ -276,7 +308,11 @@ const VoiceWidget = ({
           variant="user"
         />
         {spotlightProducts.length > 0 ? (
-          <ProductSpotlight products={spotlightProducts} assistantName={assistantName} />
+          <ProductSpotlight
+            products={spotlightProducts}
+            assistantName={assistantName}
+            fading={spotlightFading}
+          />
         ) : (
           <ParticipantTile
             label={assistantName}
@@ -290,20 +326,32 @@ const VoiceWidget = ({
       </main>
 
       {/* Cart widget: esquina inferior izquierda, muestra items del carrito live */}
-      {cart.length > 0 && (
-        <div className="absolute left-4 top-20 z-40 w-64 bg-background/95 backdrop-blur border border-border rounded-xl p-3 shadow-lg">
+      {cart.lines.length > 0 && (
+        <div
+          className={`absolute left-4 top-20 z-40 w-64 bg-background/95 backdrop-blur border rounded-xl p-3 shadow-lg animate-in slide-in-from-left fade-in duration-300 transition-all ${
+            cartPulse ? "border-primary ring-2 ring-primary/50" : "border-border"
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2 text-sm font-semibold">
             <ShoppingCart className="w-4 h-4 text-primary" />
-            Carrito ({cart.reduce((a, i) => a + i.quantity, 0)})
+            Carrito ({cart.lines.reduce((a, i) => a + i.quantity, 0)})
           </div>
           <ul className="text-xs space-y-1 max-h-48 overflow-y-auto scrollbar-hide">
-            {cart.map((it, i) => (
+            {cart.lines.map((it, i) => (
               <li key={i} className="flex justify-between gap-2">
                 <span className="truncate">{it.name}</span>
                 <span className="text-muted-foreground tabular-nums shrink-0">×{it.quantity}</span>
               </li>
             ))}
           </ul>
+          {cart.totalPrice !== null && (
+            <div className="mt-2 pt-2 border-t border-border flex justify-between text-xs font-semibold">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="tabular-nums">
+                ${cart.totalPrice.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -356,8 +404,11 @@ const VoiceWidget = ({
 //#endregion
 
 //#region extractCart
-// Parsea result de add_to_cart/view_cart/remove_from_cart → array de líneas.
-function extractCart(result: unknown): CartLine[] | null {
+// Parsea result de add_to_cart / view_cart / remove_from_cart → CartState.
+// Shapes soportados:
+//  - add_to_cart/remove_from_cart: { success, cart: ["2× nombre"], cartTotalItems, cartTotalPrice }
+//  - view_cart: { items: [{ name, quantity, price, subtotal }], total, currency }
+function extractCart(result: unknown): CartState | null {
   let data: unknown = result;
   if (typeof result === "string") {
     try { data = JSON.parse(result); } catch { return null; }
@@ -365,20 +416,23 @@ function extractCart(result: unknown): CartLine[] | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
 
-  // add_to_cart nuevo: { success, cart: ["2× nombre"], cartTotalItems }
   if (Array.isArray(d.cart)) {
-    return (d.cart as string[])
-      .map((s) => {
-        const m = /^(\d+)×\s*(.+)$/.exec(s);
-        return m ? { quantity: Number(m[1]), name: m[2] } : { quantity: 1, name: s };
-      });
+    const lines = (d.cart as string[]).map((s) => {
+      const m = /^(\d+)×\s*(.+)$/.exec(s);
+      return m ? { quantity: Number(m[1]), name: m[2] } : { quantity: 1, name: s };
+    });
+    const totalPrice =
+      typeof d.cartTotalPrice === "number" ? d.cartTotalPrice : null;
+    return { lines, totalPrice, currency: null };
   }
-  // view_cart: { items: [{ name, quantity, ... }], total, currency }
   if (Array.isArray(d.items)) {
-    return (d.items as Array<{ name?: unknown; quantity?: unknown }>).map((it) => ({
+    const lines = (d.items as Array<{ name?: unknown; quantity?: unknown }>).map((it) => ({
       name: String(it.name ?? ""),
       quantity: Number(it.quantity ?? 1),
     }));
+    const totalPrice = typeof d.total === "number" ? d.total : null;
+    const currency = typeof d.currency === "string" ? d.currency : null;
+    return { lines, totalPrice, currency };
   }
   return null;
 }
@@ -411,12 +465,19 @@ function extractProducts(result: unknown): DisplayProduct[] {
 function ProductSpotlight({
   products,
   assistantName,
+  fading,
 }: {
   products: DisplayProduct[];
   assistantName: string;
+  fading: boolean;
 }) {
   return (
-    <div className="relative rounded-2xl bg-secondary p-4 overflow-y-auto">
+    <div
+      key={products.map((p) => p.id).join(",")}
+      className={`relative rounded-2xl bg-secondary p-4 overflow-y-auto animate-in slide-in-from-right fade-in duration-300 transition-opacity duration-500 ${
+        fading ? "opacity-0" : "opacity-100"
+      }`}
+    >
       <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
         <Bot className="w-4 h-4" /> {assistantName} te muestra:
       </div>
