@@ -22,9 +22,17 @@ type DisplayProduct = {
 };
 type CartLine = { name: string; quantity: number };
 type CartState = { lines: CartLine[]; totalPrice: number | null; currency: string | null };
+type ConversationMessage = {
+  role?: string;
+  name?: string;
+  result?: unknown;
+  time?: number;
+  [k: string]: unknown;
+};
 type VapiMessage =
   | { type: "transcript"; transcriptType: "partial" | "final"; role: Role; transcript: string }
   | { type: "tool-calls-result"; toolCallList?: Array<{ id: string; name: string; result?: unknown }> }
+  | { type: "conversation-update"; messages?: ConversationMessage[]; conversation?: ConversationMessage[] }
   | { type: string; [k: string]: unknown };
 //#endregion
 
@@ -67,6 +75,10 @@ const VoiceWidget = ({
   const [cartPulse, setCartPulse] = useState(false);
   // Transcript parcial del speaker actual (se reemplaza continuo, no se apila).
   const [livePartial, setLivePartial] = useState<{ role: Role; text: string } | null>(null);
+  // Índice del último tool_call_result procesado de conversation-update.messages[].
+  // Vapi emite conversation-update entero cada turno; evitamos re-procesar
+  // tools que ya vimos.
+  const processedToolsRef = useRef(new Set<string>());
 
   // Cortar call si el user cierra tab/ventana
   useEffect(() => {
@@ -107,6 +119,7 @@ const VoiceWidget = ({
       setCart({ lines: [], totalPrice: null, currency: null });
       setCartPulse(false);
       setLivePartial(null);
+      processedToolsRef.current = new Set();
     });
     vapi.on("speech-start", () => setAssistantSpeaking(true));
     vapi.on("speech-end", () => setAssistantSpeaking(false));
@@ -141,8 +154,40 @@ const VoiceWidget = ({
         }
       }
 
-      // Tool call result → actualizar spotlight + cart widget.
-      // Vapi SDK puede emitir el result con nombres distintos según versión.
+      // Vapi no emite tool-calls-result como event propio, pero los resultados
+      // vienen dentro de conversation-update.messages[] con role "tool_call_result".
+      // Escaneamos cada update; deduplicamos por time+name con processedToolsRef.
+      if (msg.type === "conversation-update") {
+        const cu = msg as Extract<VapiMessage, { type: "conversation-update" }>;
+        const msgs = cu.messages ?? [];
+        for (const m of msgs) {
+          if (m.role !== "tool_call_result") continue;
+          const key = `${m.time ?? ""}-${m.name ?? ""}`;
+          if (processedToolsRef.current.has(key)) continue;
+          processedToolsRef.current.add(key);
+          const name = String(m.name ?? "");
+          console.log("[vapi-tool-cu]", name, "raw:", m.result);
+          if (name === "search_products" || name === "get_product") {
+            const extracted = extractProducts(m.result);
+            console.log("[vapi-tool-cu] extracted products:", extracted.length, extracted);
+            if (extracted.length > 0) {
+              setSpotlightProducts(extracted.slice(0, 3));
+              setSpotlightFading(false);
+            }
+          }
+          if (name === "add_to_cart" || name === "view_cart" || name === "remove_from_cart") {
+            const updated = extractCart(m.result);
+            console.log("[vapi-tool-cu] extracted cart:", updated);
+            if (updated) {
+              setCart(updated);
+              setCartPulse(true);
+              setTimeout(() => setCartPulse(false), 900);
+            }
+          }
+        }
+      }
+
+      // Tool call result (legacy event type — no emite en la versión actual de Vapi).
       if (
         msg.type === "tool-calls-result" ||
         msg.type === "tool-call-result" ||
