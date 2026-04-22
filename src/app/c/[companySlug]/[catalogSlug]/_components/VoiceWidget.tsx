@@ -115,9 +115,9 @@ const VoiceWidget = ({
       setAssistantVolume(lvl);
     });
     vapi.on("message", (msg: VapiMessage) => {
-      if (process.env.NEXT_PUBLIC_VAPI_DEBUG === "1") {
-        console.log("[vapi-msg]", msg.type, msg);
-      }
+      // TEMP: log siempre para diagnosticar si Vapi emite tool-calls-result.
+      // Remover tras confirmar que ProductSpotlight funciona.
+      console.log("[vapi-msg]", msg.type, msg);
       if (msg.type === "transcript") {
         const m = msg as Extract<VapiMessage, { type: "transcript" }>;
         // Solo guardamos transcripts FINALES en la historia. Los partial se
@@ -158,8 +158,10 @@ const VoiceWidget = ({
           (payload.functionCall ? [{ name: payload.functionCall.name, result: payload.result }] : []);
         for (const c of calls) {
           const name = c.name ?? "";
+          console.log("[vapi-tool]", name, "raw result:", c.result);
           if (name === "search_products" || name === "get_product") {
             const extracted = extractProducts(c.result);
+            console.log("[vapi-tool] extracted products:", extracted.length, extracted);
             if (extracted.length > 0) {
               setSpotlightProducts(extracted.slice(0, 3));
               setSpotlightFading(false);
@@ -167,6 +169,7 @@ const VoiceWidget = ({
           }
           if (name === "add_to_cart" || name === "view_cart" || name === "remove_from_cart") {
             const updated = extractCart(c.result);
+            console.log("[vapi-tool] extracted cart:", updated);
             if (updated) {
               setCart(updated);
               setCartPulse(true);
